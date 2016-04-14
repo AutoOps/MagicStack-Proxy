@@ -37,20 +37,11 @@ if __name__ == "__main__":
 
     app = tornado.web.Application(**conf)
     server = tornado.httpserver.HTTPServer(app)
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
-    else:
-        port = options.port
 
-    server.listen(port)
-
-    if options.address:
-        hostname = options.address
-    else:
-        hostname = socket.gethostbyname(socket.gethostname())
+    server.listen(options.port, address=options.address)
 
     print "-" * 20
-    print "      tornado运行地址:%s:%s" % (hostname, port)
+    print "      tornado运行地址:%s:%s" % (options.address, options.port)
     print "      等待连接......"
     print "-" * 20
 
