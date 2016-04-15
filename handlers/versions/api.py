@@ -10,8 +10,9 @@ try:
     import simplejson as json
 except ImportError:
     import json
-from tornado.web import RequestHandler
 
+
+from common.base import RequestHandler
 from conf.settings import API_HOST, API_PORT
 
 class VersionHandler(RequestHandler):

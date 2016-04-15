@@ -23,3 +23,10 @@ RPC_PORT = 80
 RPC_PROC = 'http'
 RPC_URL  = '{0}://{1}:{2}/cobbler_api'.format( RPC_PROC, RPC_HOST, RPC_PORT )
 
+# 用户定义，可放入到数据库中
+USERS = {
+    'test':'123456'
+}
+
+# timestamp available
+TIMESTAMP_AVAI = 15*60 # seconds

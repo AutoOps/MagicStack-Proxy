@@ -12,12 +12,13 @@ try:
 except ImportError:
     import json
 
-from tornado.web import RequestHandler
 from tornado.web import asynchronous
 from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 
+from common.base import RequestHandler
+from utils.auth import auth
 logger = logging.getLogger()
 
 class ZooHandler(RequestHandler):
@@ -44,6 +45,7 @@ class ZooHandler(RequestHandler):
             }
 
         })
+        self.finish()
 
     def put(self, *args, **kwargs):
         """
@@ -59,6 +61,7 @@ class ZooHandler(RequestHandler):
 
     @asynchronous
     @coroutine
+    @auth
     def post(self, *args, **kwargs):
         """
             新增
@@ -73,7 +76,6 @@ class ZooHandler(RequestHandler):
         name = params.get( 'name' )
         address = params.get( 'address' )
         self.add_zoos(*args, **kwargs)
-        print '22222222222222222'
         self.write({
             'zoo1':{
                 'address': address,
@@ -85,10 +87,8 @@ class ZooHandler(RequestHandler):
 
     @run_on_executor
     def add_zoos(self, *args, **kwargs):
-        print 'add_zoos --> start'
         import time
         time.sleep( 20 )
-        print 'add_zoos --> end'
         return
 
 
