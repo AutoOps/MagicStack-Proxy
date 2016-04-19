@@ -14,6 +14,7 @@ urls = []
 models = [
     "versions.urls",
     "zoos.v1_0.urls",
+    "ansible.v1_0.urls",
 ]
 
 for mod in models:
