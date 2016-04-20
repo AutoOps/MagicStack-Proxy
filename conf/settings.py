@@ -18,10 +18,12 @@ debug = True
 API_HOST = 'localhost'
 API_PORT = 8100
 
-RPC_HOST = '172.16.20.200'
-RPC_PORT = 80
-RPC_PROC = 'http'
-RPC_URL  = '{0}://{1}:{2}/cobbler_api'.format( RPC_PROC, RPC_HOST, RPC_PORT )
+COBBLER_RPC_HOST = '172.16.30.69'
+COBBLER_RPC_PORT = 80
+COBBLER_RPC_PROC = 'http'
+COBBLER_RPC_URL  = '{0}://{1}:{2}/cobbler_api'.format( COBBLER_RPC_PROC, COBBLER_RPC_HOST, COBBLER_RPC_PORT )
+COBBLER_USERNAME = 'cobbler'
+COBBLER_PASSWORD = 'cobbler'
 
 # 用户定义，可放入到数据库中
 USERS = {

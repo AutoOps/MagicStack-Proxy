@@ -1,0 +1,3 @@
+参数信息
+    server.power_system(system_handle,power="on",token)
+    name是必须的
