@@ -98,7 +98,7 @@ class Distros(Cobbler):
         mnt_sub_cmd = "mkdir {0}".format(mnt_sub)
         mount_cmd = "mount -o loop {0} {1}".format(dvd, mnt_sub)
         umount_cmd = "umount {0}".format(mnt_sub)
-        
+
 
 
 
