@@ -26,7 +26,7 @@ class ResultsCollector(CallbackBase):
         self.host_failed[result._host.get_name()] = result
 
 
-def exec_module(mod_name, *args, **kwargs):
+def exec_play(mod_name, *args, **kwargs):
     exec_result = {'success':[], 'failed':[], 'unreachable':[]}
     host_list = ['localhost', 'www.example.com', 'www.google.com']
     Options = namedtuple('Options', ['connection','module_path', 'forks', 'remote_user',
@@ -83,7 +83,7 @@ def exec_module(mod_name, *args, **kwargs):
 
     print "DOWN *********"
     for host, result in callback.host_unreachable.items():
-        exec_result['unreachable'].append(host=host, msg=result._result['msg'])
+        exec_result['unreachable'].append(dict(host=host, msg=result._result['msg']))
     return exec_result
 
 if __name__ == '__main__':

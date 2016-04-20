@@ -13,8 +13,9 @@ from tornado.web import asynchronous
 from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
-from ansible_api import exec_module
+from ansible_play import exec_play
 from all_modules import gen_classify_modules
+from ansible_play_book import exec_playbook
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(filename)s [line:%(lineno)d]   %(levelname)s   %(message)s")
@@ -33,15 +34,23 @@ class GenModulesHandler(RequestHandler):
         })
         self.finish()
 
-class ExecModuleHandler(RequestHandler):
+class ExecPlayHandler(RequestHandler):
     def post(self, *args, **kwargs):
         param = json.loads(self.request.body)
         mod_name = param['name']
-        result = exec_module(mod_name, {})
+        result = exec_play(mod_name, {})
         self.write({
             'result': result,
         })
         self.finish()
 
 
-
+class ExecPlayBookHandler(RequestHandler):
+    def post(self, *args, **kwargs):
+        param = json.loads(self.request.body)
+        file_name = param['name']
+        result = exec_playbook(file_name)
+        self.write({
+            'result': result,
+        })
+        self.finish()
