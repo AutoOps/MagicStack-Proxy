@@ -131,12 +131,13 @@ class Distros(Cobbler):
             3. umount dvd
         """
         path = params.get('path')
-        osname = params.get('filename')
+        osname = params.pop('filename')
         name = params.get('name')
         dvd = '/'.join([path, osname])
         logger.info( "check iso {0}".format(dvd) )
         self._check_iso(dvd)
         mnt_sub = "/mnt/{0}".format(name)
+        params['path'] =  mnt_sub
         mnt_sub_cmd = ['mkdir', mnt_sub]
         mount_cmd = ['mount', '-o', 'loop', dvd, mnt_sub]
         umount_cmd = ["umount", mnt_sub]
@@ -175,7 +176,7 @@ class Distros(Cobbler):
         ret, out_info, error_msg = self.execute_cmd(del_mnt_sub_cmd)
         if not ret:
             logger.error('execute {0} error{1}'.format(del_mnt_sub_cmd, error_msg))
-        return status[2], task_name
+        #return status[2], task_name
 
 def cobbler_token(func):
     @functools.wraps(func)
