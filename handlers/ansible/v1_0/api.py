@@ -79,7 +79,8 @@ class ExecPlayBookHandler(RequestHandler):
     def post(self, *args, **kwargs):
         param = json.loads(self.request.body)
         file_name = param['name']
-        result = exec_playbook(file_name)
+        global res_playbook
+        res_playbook = exec_playbook(file_name)
         self.write({
             'state': '正在执行中......',
         })
