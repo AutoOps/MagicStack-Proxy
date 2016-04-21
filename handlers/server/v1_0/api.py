@@ -79,7 +79,9 @@ class ServerHandler(RequestHandler):
         params = json.loads(self.request.body)
         try:
 
-            self.set_status(202, 'success')
+
+
+            self.set_status(201, 'success')
             self.finish({'messege':'creating'})
         except:
             logger.error(traceback.format_exc())
@@ -131,21 +133,15 @@ class DistrosHandler(RequestHandler):
                 raise RuntimeError('File {0} is not exist'.format(osname))
             params['filename'] = name
             params['name'] = '{0}-{1}'.format(str(uuid.uuid1()),params['arch'])
-            self.upload(params=params, distros=distros)
+            task_name, mnt_sub= distros.upload(params)
             result = {
                 'message':"importing...",
                 'distros':{
                     'name':'{0}'.format(params['name']),
-                    #'task_name': task_name
+                    'task_name': task_name
                 }
             }
-            #status, task_name = distros.upload(params)
-            # if status == 'complete':
-            #     self.set_status('201', 'ok')
-            #     result['message'] = 'import success'
-            # else:
-            #     self.set_status('405', 'failed')
-            #     result['message'] = "import failed, views event log %s"%task_name
+            self.after_upload(task_name=task_name, mnt_sub=mnt_sub, distros=distros)
             self.set_status('201', 'ok')
             self.finish(result)
         except:
@@ -164,10 +160,11 @@ class DistrosHandler(RequestHandler):
         pass
 
     @run_on_executor
-    def upload(self, *args, **kwargs):
+    def after_upload(self, *args, **kwargs):
         try:
             distros = kwargs.pop('distros')
-            params = kwargs.pop('params')
-            distros.upload(params)
+            task_name = kwargs.pop('task_name')
+            mnt_sub = kwargs.pop('mnt_sub')
+            distros.after_upload(task_name, mnt_sub)
         except:
             logger.error(traceback.format_exc())

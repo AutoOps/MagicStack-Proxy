@@ -89,6 +89,7 @@ class System(Cobbler):
         name = params.get('name')
 
 
+
     def modify(self, params):
         remote = self.get_remote()
         token = self.get_token()
@@ -140,8 +141,6 @@ class Distros(Cobbler):
         params['path'] =  mnt_sub
         mnt_sub_cmd = ['mkdir', mnt_sub]
         mount_cmd = ['mount', '-o', 'loop', dvd, mnt_sub]
-        umount_cmd = ["umount", mnt_sub]
-        del_mnt_sub_cmd = ['rm', '-rf', mnt_sub]
         logger.info('create temp dir %s' % str(mnt_sub))
         ret, out_info, error_msg = self.execute_cmd(mnt_sub_cmd)
         if not ret:
@@ -156,17 +155,20 @@ class Distros(Cobbler):
         token = self.get_token()
         logger.info("async import iso")
         task_name = remote.background_import(params, token)
+        return task_name, mnt_sub
+
+    def after_upload(self, task_name, mnt_sub):
+        """
+            导入完成后，卸载硬盘，并删除目录
+        """
+        remote = self.get_remote()
+        umount_cmd = ["umount", mnt_sub]
+        del_mnt_sub_cmd = ['rm', '-rf', mnt_sub]
         logger.info("check task {0} result".format(task_name))
         status = remote.get_task_status(task_name)
         while status[2] not in ('complete', 'failed'):
             status = remote.get_task_status(task_name)
         logger.info("task execute complete - result[{0}]".format(status[2]))
-
-        # re_task = re.compile('.*?### TASK (COMPLETE|FAILED) ###', re.S)
-        # log_last = remote.get_event_log(task_name).strip('\n').split('\n')[-1]
-        # while not re_task.match(log_last):
-        #     time.sleep(5)
-        #     log_last = remote.get_event_log(task_name).strip('\n').split('\n')[-1]
 
         logger.info("umount iso {0}".format(mnt_sub))
         ret, out_info, error_msg = self.execute_cmd(umount_cmd)
@@ -176,7 +178,7 @@ class Distros(Cobbler):
         ret, out_info, error_msg = self.execute_cmd(del_mnt_sub_cmd)
         if not ret:
             logger.error('execute {0} error{1}'.format(del_mnt_sub_cmd, error_msg))
-        #return status[2], task_name
+
 
 def cobbler_token(func):
     @functools.wraps(func)
