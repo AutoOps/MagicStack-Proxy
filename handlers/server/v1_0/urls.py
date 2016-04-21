@@ -7,12 +7,12 @@
 # @Version :
 
 from tornado.web import url
-from handlers.server.v1_0.api import ServerActionHandler, ServerHandler, DistrosHandler
+from handlers.server.v1_0.api import SystemActionHandler, SystemHandler, DistrosHandler
 
 VERSION = 'v1.0' # API Version
 
 urls = [
-    url(r'/servers/action?$', ServerActionHandler),
-    url(r'/servers?$', ServerHandler),
+    url(r'/system/action?$', SystemActionHandler),
+    url(r'/system?$', SystemHandler),
     url(r'/distros?$', DistrosHandler),
 ]

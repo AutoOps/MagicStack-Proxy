@@ -26,7 +26,7 @@ from utils.auth import auth
 
 logger = logging.getLogger()
 
-class ServerActionHandler(RequestHandler):
+class SystemActionHandler(RequestHandler):
     """
         服务器操作，批量开机/关机/重启
     """
@@ -51,15 +51,15 @@ class ServerActionHandler(RequestHandler):
                     'systems' : systems ,
                 }
                 system = System()
-                system.power(params)
+                task_name = system.power(params)
                 self.set_status(202, 'success')
-                self.finish({'messege':'running'})
+                self.finish({'messege':'running', 'task_name':task_name})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
-class ServerHandler(RequestHandler):
+class SystemHandler(RequestHandler):
     """
         服务器
     """
@@ -75,14 +75,15 @@ class ServerHandler(RequestHandler):
     def post(self, *args, **kwargs):
         """
             创建服务器
+            1
+
         """
         params = json.loads(self.request.body)
         try:
-
-
-
+            system = System()
+            system.create(params)
             self.set_status(201, 'success')
-            self.finish({'messege':'creating'})
+            self.finish({'messege':'created'})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
