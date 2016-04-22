@@ -33,10 +33,10 @@ class SystemActionHandler(RequestHandler):
 
     #@auth
     def post(self, *args, **kwargs):
-        params = json.loads(self.request.body)
-        power = params.get('power')
-        systems = params.get('systems', None)
         try:
+            params = json.loads(self.request.body)
+            power = params.get('power')
+            systems = params.get('systems', None)
             if power:
                 if power.lower() not in ( 'on', 'off', 'reboot', 'status' ):
                     self.write_error(403)
@@ -52,8 +52,12 @@ class SystemActionHandler(RequestHandler):
                 }
                 system = System()
                 task_name = system.power(params)
-                self.set_status(202, 'success')
+                self.set_status(200, 'success')
                 self.finish({'messege':'running', 'task_name':task_name})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
@@ -78,12 +82,16 @@ class SystemHandler(RequestHandler):
             1
 
         """
-        params = json.loads(self.request.body)
         try:
+            params = json.loads(self.request.body)
             system = System()
             system.create(params)
-            self.set_status(201, 'success')
+            self.set_status(200, 'success')
             self.finish({'messege':'created'})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')

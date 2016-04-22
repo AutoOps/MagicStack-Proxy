@@ -153,7 +153,7 @@ class System(Cobbler):
         mandatory_fileds = filter(lambda x: fileds[x][0], fileds.keys())
         for k in mandatory_fileds:
             if not params.get(k, None):
-                raise RuntimeError('Variable "{0}" is mandatory, check your params.'.format(k))
+                raise ValueError('Variable "{0}" is mandatory, check your params.'.format(k))
 
         # 2.校验输入项范围
         scode_fileds = filter(lambda x: fileds[x][1], fileds.keys())
@@ -161,7 +161,7 @@ class System(Cobbler):
             val = params.get(k)
             if val:
                 if val not in fileds[k][2]:
-                    raise RuntimeError('Variable {0} value is Error, must in {1}'.format(k, fileds[k][2]))
+                    raise ValueError('Variable {0} value is Error, must in {1}'.format(k, fileds[k][2]))
 
     def check_fileds(self, params):
 
@@ -198,7 +198,7 @@ class System(Cobbler):
             temp_dict = {}
             logger.info("struct interface params {0}".format(interface_name))
             for key, val in params.items():
-                temp_dict['%s-%s'%(interface_name, key)] = val
+                temp_dict['%s-%s'%(key, interface_name)] = val
             logger.info("update interface {0}".format(temp_dict))
             remote.modify_system(system_id, 'modify_interface',
                                  temp_dict, token)
@@ -223,7 +223,7 @@ class Distros(Cobbler):
     def _check_iso(self, path):
 
         if not os.path.exists(path):
-            raise RuntimeError('{0} does not exist'.format(path))
+            raise ValueError('{0} does not exist'.format(path))
 
     def get_fileds(self):
 
