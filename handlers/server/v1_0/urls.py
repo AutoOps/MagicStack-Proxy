@@ -12,10 +12,10 @@ from handlers.server.v1_0.api import SystemActionHandler, SystemHandler, Distros
 VERSION = 'v1.0' # API Version
 
 urls = [
-    url(r'/system/action?$', SystemActionHandler),
-    url(r'/system?$', SystemHandler),
-    url(r'/system/(?P<system_id>.*)?$', SystemHandler),
+    url(r'/system/action$', SystemActionHandler),
+    url(r'/system$', SystemHandler),
+    url(r'/system/(?P<system_id>.*)$', SystemHandler),
     url(r'/distro?$', DistrosHandler),
-    url(r'/distro/(?P<distro_id>.*)?$', DistrosHandler),
-    url(r'/event/(?P<event_id>.*)?$', EventSingalHandler)
+    url(r'/distro/(?P<distro_id>.*)$', DistrosHandler),
+    url(r'/event/(?P<event_id>.*)$', EventSingalHandler)
 ]
