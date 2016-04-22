@@ -14,6 +14,8 @@ VERSION = 'v1.0' # API Version
 urls = [
     url(r'/system/action?$', SystemActionHandler),
     url(r'/system?$', SystemHandler),
-    url(r'/distros?$', DistrosHandler),
-    url(r'/(?P<event_id>.*)/event?$', EventSingalHandler)
+    url(r'/system/(?P<system_id>.*)?$', SystemHandler),
+    url(r'/distro?$', DistrosHandler),
+    url(r'/distro/(?P<distro_id>.*)?$', DistrosHandler),
+    url(r'/event/(?P<event_id>.*)?$', EventSingalHandler)
 ]

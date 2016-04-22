@@ -220,6 +220,14 @@ class System(Cobbler):
         remote = self.get_remote()
         token = self.get_token()
 
+    def get_item(self, system_name):
+        remote = self.get_remote()
+        token = self.get_token()
+        result = remote.get_system(system_name, token)
+        if not isinstance(result, dict):
+            raise HTTPError(404, 'system not found')
+        return result
+
 
 class Distros(Cobbler):
     def _check_iso(self, path):
@@ -302,6 +310,13 @@ class Distros(Cobbler):
         if not ret:
             logger.error('execute {0} error{1}'.format(del_mnt_sub_cmd, error_msg))
 
+    def get_item(self, distros_name):
+        remote = self.get_remote()
+        token = self.get_token()
+        result = remote.get_distro(distros_name, token)
+        if not isinstance(result, dict):
+            raise HTTPError(404, 'distro not found')
+        return result
 
 class Profile(Cobbler):
     def get_items(self, name=None):
@@ -334,11 +349,12 @@ class Event(Cobbler):
                 raise HTTPError(404, 'no event with that id')
         return result
 
-    def get_events(self, event_ids):
-        if not isinstance( event_ids, (tuple,list)):
-            raise HTTPError(400, 'params must be tuple or list')
+    def get_events(self):
+        # todo 进行分页等操作
+        remote = self.get_remote()
+        events = remote.get_events()
         result = {}
-        for event_id in event_ids:
+        for event_id in events.keys():
             single_info = self.get_event(event_id)
             result[event_id] = single_info
         return result
@@ -364,9 +380,6 @@ if __name__ == "__main__":
     # remote = cobbler.get_remote()
     # data = remote.get_event_log('2016-04-18_170033_import')
     # s = data.strip('\n').split('\n')[-1]
-    #
-    #
-    # #
     # # re_task = re.compile('.*?### TASK (COMPLETE|FAILED) ###', re.S)
     # # s = [ "### TASK COMPLETE ###", "### TASK FAILED ###"]
     # # for row in s:
@@ -395,9 +408,16 @@ if __name__ == "__main__":
     # #sys.check_fileds(params)
     # sys.create(params)
 
-    event = Event()
-    try:
-        print event.get_event('2016-04-21_155639_power')
-    except HTTPError, msg:
-        print msg.status_code
-    print event.get_events(['2016-04-21_155639_power', '2016-04-21_134947_import'])
+    #event = Event()
+    # try:
+    #     print event.get_event('2016-04-21_155639_power')
+    # except HTTPError, msg:
+    #     print msg.status_code
+    # print event.get_events(['2016-04-21_155639_power', '2016-04-21_134947_import'])
+    #
+    # cobbler = Cobbler()
+    # remote = cobbler.get_remote()
+    # print remote.get_event_log()
+    #print event.get_events()
+    system = System()
+    system.get('test123456')

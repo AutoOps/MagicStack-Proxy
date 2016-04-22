@@ -74,10 +74,26 @@ class SystemHandler(RequestHandler):
 
     #@auth
     def get(self, *args, **kwargs):
-        """
-            获取服务器信息
-        """
-        pass
+        system_id = kwargs.get('system_id')
+        try:
+            system = System()
+            if system_id:
+                info = system.get_item(system_id)
+            else:
+                # todo 尝试分页等操作
+                info = {}
+            self.set_status(200, 'ok')
+            self.finish(info)
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            # todo 定制异常
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
+
 
     #@auth
     def post(self, *args, **kwargs):
@@ -126,11 +142,11 @@ class DistrosHandler(RequestHandler):
             tv = params.get(k)
             if v[0]:
                 if not tv:
-                    raise HTTPError('400', 'Variable {0} is mandatory'.format(k))
+                    raise HTTPError(400, 'Variable {0} is mandatory'.format(k))
             if v[1]:
                 if tv:
                     if tv.lower() not in v[2]:
-                        raise HTTPError('400', 'Variable {0} value is Error, must in {1}'.format(k, v[2]))
+                        raise HTTPError(400, 'Variable {0} value is Error, must in {1}'.format(k, v[2]))
 
     @asynchronous
     @coroutine
@@ -145,7 +161,7 @@ class DistrosHandler(RequestHandler):
             name = params['name']
             osname = '/'.join([path, name])
             if not os.path.exists(osname):
-                raise HTTPError('404', 'File {0} is not exist'.format(osname))
+                raise HTTPError(404, 'File {0} is not exist'.format(osname))
             params['filename'] = name
             params['name'] = '{0}-{1}'.format(str(uuid.uuid1()),params['arch'])
             task_name, mnt_sub= distros.upload(params)
@@ -157,7 +173,7 @@ class DistrosHandler(RequestHandler):
                 }
             }
             self.after_upload(task_name=task_name, mnt_sub=mnt_sub, distros=distros)
-            self.set_status('201', 'ok')
+            self.set_status(201, 'ok')
             self.finish(result)
         except ValueError:
             logger.error(traceback.format_exc())
@@ -177,7 +193,26 @@ class DistrosHandler(RequestHandler):
         pass
 
     def get(self, *args, **kwargs):
-        pass
+        distro_id = kwargs.get('distro_id')
+        try:
+            distro = Distros()
+            if distro_id:
+                info = distro.get_item(distro_id)
+            else:
+                # todo 尝试分页及不分页
+                info = {}
+                pass
+            self.set_status(200, 'ok')
+            self.finish(info)
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            # todo 定制异常
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
     def put(self, *args, **kwargs):
         pass
@@ -198,7 +233,7 @@ class EventSingalHandler(RequestHandler):
         try:
            event = Event()
            info = event.get_event(event_id)
-           self.set_status(201, 'ok')
+           self.set_status(200, 'ok')
            self.finish(info)
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
