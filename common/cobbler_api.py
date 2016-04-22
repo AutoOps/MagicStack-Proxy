@@ -16,6 +16,8 @@ import subprocess
 import re
 import time
 
+from tornado.web import HTTPError
+
 import conf.settings as settings
 
 logger = logging.getLogger()
@@ -53,7 +55,7 @@ class Cobbler(object):
             return (bool, stdout, error_msg)
         """
         if not isinstance(params, (list, tuple)):
-            raise RuntimeError('params must be list or tuple')
+            raise HTTPError(400, 'params must be list or tuple')
         pop = subprocess.Popen(params, stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
@@ -153,7 +155,7 @@ class System(Cobbler):
         mandatory_fileds = filter(lambda x: fileds[x][0], fileds.keys())
         for k in mandatory_fileds:
             if not params.get(k, None):
-                raise ValueError('Variable "{0}" is mandatory, check your params.'.format(k))
+                raise HTTPError(400,'Variable "{0}" is mandatory, check your params.'.format(k))
 
         # 2.校验输入项范围
         scode_fileds = filter(lambda x: fileds[x][1], fileds.keys())
@@ -161,7 +163,7 @@ class System(Cobbler):
             val = params.get(k)
             if val:
                 if val not in fileds[k][2]:
-                    raise ValueError('Variable {0} value is Error, must in {1}'.format(k, fileds[k][2]))
+                    raise HTTPError(400,'Variable {0} value is Error, must in {1}'.format(k, fileds[k][2]))
 
     def check_fileds(self, params):
 
@@ -223,7 +225,7 @@ class Distros(Cobbler):
     def _check_iso(self, path):
 
         if not os.path.exists(path):
-            raise ValueError('{0} does not exist'.format(path))
+            raise HTTPError(400,'{0} does not exist'.format(path))
 
     def get_fileds(self):
 
@@ -308,6 +310,38 @@ class Profile(Cobbler):
     def get_item(self, name):
         return self.get_items(name)
 
+class Event(Cobbler):
+
+    def get_event(self, event_id):
+        """
+            1.获取任务结果
+            2.获取日志信息
+            retrun {
+                status:''
+                loginfo:''
+            }
+        """
+        result = {}
+        try:
+            remote = self.get_remote()
+            status = remote.get_task_status(event_id)
+            loginfo = remote.get_event_log(event_id)
+            result['status'] = status[2]
+            result['event_log'] = loginfo
+        except xmlrpclib.Fault, msg:
+            re_no_event = re.compile('.*?no event with that id.*?', re.S)
+            if re.findall(re_no_event, msg.faultString):
+                raise HTTPError(404, 'no event with that id')
+        return result
+
+    def get_events(self, event_ids):
+        if not isinstance( event_ids, (tuple,list)):
+            raise HTTPError(400, 'params must be tuple or list')
+        result = {}
+        for event_id in event_ids:
+            single_info = self.get_event(event_id)
+            result[event_id] = single_info
+        return result
 
 def cobbler_token(func):
     @functools.wraps(func)
@@ -322,7 +356,11 @@ def cobbler_token(func):
 
 
 if __name__ == "__main__":
-    # cobbler = Cobbler()
+    cobbler = Cobbler()
+    # try:
+    #     cobbler.execute_cmd('1')
+    # except HTTPError, msg:
+    #     print msg.status_code, msg.log_message
     # remote = cobbler.get_remote()
     # data = remote.get_event_log('2016-04-18_170033_import')
     # s = data.strip('\n').split('\n')[-1]
@@ -335,24 +373,31 @@ if __name__ == "__main__":
     # #     print re_task.match(row)
     # status = remote.get_task_status('2016-04-18_170033_import')
     # print status
-    params = {
-        "name": "test123",
-        "profile": "28a17fb4-0786-11e6-83a2-fa163e763553-x86_64",
-        "power_type": 'ipmilan',
-        "power_address": '172.16.10.210',
-        "power_user": 'root',
-        "power_pass": 'admin',
-        "interfaces": {
-            "eth0":{
-                "mac_address": "fa:16:3e:76:35:53",
-                "ip_address": "192.160.10.30"
-            },
-            "eth1":{
-                "mac_address": "fa:16:3e:76:35:53",
-                "ip_address": "192.160.10.30"
-            }
-        }
-    }
-    sys = System()
-    #sys.check_fileds(params)
-    sys.create(params)
+    # params = {
+    #     "name": "test123",
+    #     "profile": "28a17fb4-0786-11e6-83a2-fa163e763553-x86_64",
+    #     "power_type": 'ipmilan',
+    #     "power_address": '172.16.10.210',
+    #     "power_user": 'root',
+    #     "power_pass": 'admin',
+    #     "interfaces": {
+    #         "eth0":{
+    #             "mac_address": "fa:16:3e:76:35:53",
+    #             "ip_address": "192.160.10.30"
+    #         },
+    #         "eth1":{
+    #             "mac_address": "fa:16:3e:76:35:53",
+    #             "ip_address": "192.160.10.30"
+    #         }
+    #     }
+    # }
+    # sys = System()
+    # #sys.check_fileds(params)
+    # sys.create(params)
+
+    event = Event()
+    try:
+        print event.get_event('2016-04-21_155639_power')
+    except HTTPError, msg:
+        print msg.status_code
+    print event.get_events(['2016-04-21_155639_power', '2016-04-21_134947_import'])
