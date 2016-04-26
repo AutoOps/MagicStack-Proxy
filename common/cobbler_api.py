@@ -24,6 +24,9 @@ logger = logging.getLogger()
 
 
 class Cobbler(object):
+
+    TYPE = None
+
     def __init__(self, username=settings.COBBLER_USERNAME, password=settings.COBBLER_PASSWORD):
         self.username = username
         self.password = password
@@ -66,8 +69,10 @@ class Cobbler(object):
         else:
             return ( False, pop.stdout.read(), pop.stderr.read())
 
-
 class System(Cobbler):
+
+    TYPE = 'system'
+
     def get_fileds(self):
 
         interface = {
@@ -180,6 +185,7 @@ class System(Cobbler):
         token = self.get_token()
         logger.debug('systems[{0}] power{1}'.format(params.get('systems'), params.get('power')))
         result = remote.background_power_system(params, token)
+        return result
 
     def create(self, params):
         remote = self.get_remote()
@@ -190,7 +196,9 @@ class System(Cobbler):
         # 2.新建system
         system_id = remote.new_system(token)
         logger.info("new system id {0}".format(system_id))
-        interfaces = params.pop('interfaces')
+        interfaces = {}
+        if params.has_key('interfaces'):
+            interfaces = params.pop('interfaces')
         for key, val in params.items():
             remote.modify_system(system_id,key,val,token)
             logger.info("set params {0} = {1}".format(key, val))
@@ -211,10 +219,38 @@ class System(Cobbler):
         remote.sync(token)
         return system_id
 
-    def modify(self, params):
+    def modify(self, system_name, params):
         remote = self.get_remote()
         token = self.get_token()
         logger.debug('modify system params:{0}'.format(params))
+        interfaces = {}
+        if params.has_key('interfaces'):
+            interfaces = params.pop('interfaces')
+
+        # check todo
+        if not remote.has_item(self.TYPE, system_name):
+            raise HTTPError(404,'System {0} not found'.format(system_name))
+
+        system_id = remote.get_system_handle(system_name, token)
+
+        for key, val in params.items():
+            logger.info("set params {0} = {1}".format(key, val))
+            remote.modify_system(system_id,key,val,token)
+
+        for interface_name, params in interfaces.items():
+            # 重新构造数据，将interface的参数修改为 interface_name+key
+            temp_dict = {}
+            logger.info("struct interface params {0}".format(interface_name))
+            for key, val in params.items():
+                temp_dict['%s-%s'%(key, interface_name)] = val
+            logger.info("update interface {0}".format(temp_dict))
+            remote.modify_system(system_id, 'modify_interface',
+                                 temp_dict, token)
+            del temp_dict
+        logger.info("save system {0}".format(system_id))
+        remote.save_system(system_id,token)
+        logger.info("sync system info")
+        remote.sync(token)
 
     def delete(self, params):
         remote = self.get_remote()
@@ -227,6 +263,8 @@ class System(Cobbler):
         if not isinstance(result, dict):
             raise HTTPError(404, 'system not found')
         return result
+
+
 
 
 class Distros(Cobbler):

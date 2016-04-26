@@ -124,7 +124,25 @@ class SystemHandler(RequestHandler):
         """
             修改服务器
         """
-        pass
+        try:
+            system_id = kwargs.get('system_id')
+            params = json.loads(self.request.body)
+            system = System()
+            system.modify(system_id, params)
+            self.set_status(200, 'success')
+            self.finish({'messege':'success'})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
     #@auth
     def delete(self, *args, **kwargs):
