@@ -36,24 +36,36 @@ class SystemActionHandler(RequestHandler):
         try:
             params = json.loads(self.request.body)
             power = params.get('power')
+            rebuild = params.get('rebuild', None)
             systems = params.get('systems', None)
+            system = System()
+            if not isinstance(systems, (list, tuple)):
+                self.write_error(403)
+                return
+
             if power:
                 if power.lower() not in ( 'on', 'off', 'reboot', 'status' ):
                     self.write_error(403)
                     return
-
-                if not isinstance(systems, (list, tuple)):
-                    self.write_error(403)
-                    return
-
                 params = {
                     'power' :  power.lower(),
                     'systems' : systems ,
                 }
-                system = System()
                 task_name = system.power(params)
                 self.set_status(200, 'success')
                 self.finish({'messege':'running', 'task_name':task_name})
+            elif rebuild:
+                profile = params.get('profile')
+                rebuild_params = {
+                    'systems':systems,
+                    'netboot_enabled':True,
+                }
+                if profile: # Todo check exists
+                    rebuild_params['profile'] = profile
+                task_name = system.rebuild(rebuild_params)
+                self.set_status(200, 'success')
+                self.finish({'messege':'running', 'task_name':task_name})
+
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')

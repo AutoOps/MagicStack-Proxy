@@ -187,6 +187,30 @@ class System(Cobbler):
         result = remote.background_power_system(params, token)
         return result
 
+    def rebuild(self, params):
+        """
+            重装系统有三个步骤
+            1.设置新的profile（可选）
+            2.设置Netboot Enabled为true
+            3.重启电源
+        """
+        logger.info("rebuild set param")
+        systems = params.pop('systems')
+        import datetime
+        print datetime.datetime.now()
+        for system_name in systems:
+            self.modify(system_name,params)
+        print datetime.datetime.now()
+        # build power params
+        power_data = {
+            'power':'reboot',
+            'systems':systems # todo 考虑批量操作
+        }
+        logger.info('rebuild power reboot')
+        result = self.power(power_data)
+        print datetime.datetime.now()
+        return result
+
     def create(self, params):
         remote = self.get_remote()
         token = self.get_token()
@@ -204,7 +228,7 @@ class System(Cobbler):
             logger.info("set params {0} = {1}".format(key, val))
 
         for interface_name, params in interfaces.items():
-            # 1重新构造数据，将interface的参数修改为 interface_name+key
+            # 重新构造数据，将interface的参数修改为 interface_name+key
             temp_dict = {}
             logger.info("struct interface params {0}".format(interface_name))
             for key, val in params.items():
@@ -250,7 +274,8 @@ class System(Cobbler):
         logger.info("save system {0}".format(system_id))
         remote.save_system(system_id,token)
         logger.info("sync system info")
-        remote.sync(token)
+        sync_task = remote.sync(token)
+        return sync_task
 
     def delete(self, params):
         remote = self.get_remote()
