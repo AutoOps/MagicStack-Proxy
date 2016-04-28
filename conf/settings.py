@@ -7,6 +7,8 @@
 # @Version :
 
 import logging
+import os
+
 logging.basicConfig(
                     level = logging.DEBUG,
                     format='%(filename)s[line:%(lineno)d] %(levelname)s (%(asctime)s) %(message)s',
@@ -32,3 +34,5 @@ USERS = {
 
 # timestamp available
 TIMESTAMP_AVAI = 15*60 # seconds
+
+UPLOAD_PATH = os.path.join(os.path.dirname(__file__),'..', 'upload_files')

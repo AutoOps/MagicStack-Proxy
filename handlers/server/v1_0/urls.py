@@ -7,7 +7,7 @@
 # @Version :
 
 from tornado.web import url
-from handlers.server.v1_0.api import SystemActionHandler, SystemHandler, DistrosHandler, EventSingalHandler
+from handlers.server.v1_0.api import SystemActionHandler, SystemHandler, DistrosHandler, EventSingalHandler, FileHandler
 
 VERSION = 'v1.0' # API Version
 
@@ -17,5 +17,6 @@ urls = [
     url(r'/system/(?P<system_id>.*)$', SystemHandler),
     url(r'/distro?$', DistrosHandler),
     url(r'/distro/(?P<distro_id>.*)$', DistrosHandler),
-    url(r'/event/(?P<event_id>.*)$', EventSingalHandler)
+    url(r'/event/(?P<event_id>.*)$', EventSingalHandler),
+    url(r'/upload/?$', FileHandler)
 ]

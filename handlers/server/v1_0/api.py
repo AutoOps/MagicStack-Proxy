@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from common.base import RequestHandler
 from common.cobbler_api import System, Distros, Event
 from utils.auth import auth
+from conf.settings import UPLOAD_PATH
 
 logger = logging.getLogger()
 
@@ -276,25 +277,32 @@ class EventSingalHandler(RequestHandler):
             self.finish({'messege':'failed'})
 
 
-# class EventHandler(RequestHandler):
-#
-#     def get(self, *args, **kwargs):
-#         try:
-#            params = json.loads(self.request.body)
-#
-#         except ValueError:
-#             logger.error(traceback.format_exc())
-#             self.set_status(400, 'value error')
-#             self.finish({'messege':'value error'})
-#         except HTTPError, http_error:
-#             logger.error(traceback.format_exc())
-#             self.set_status(http_error.status_code, http_error.log_message)
-#             self.finish({'messege':http_error.log_message})
-#         except:
-#             # todo 定制异常
-#             logger.error(traceback.format_exc())
-#             self.set_status(500, 'failed')
-#             self.finish({'messege':'failed'})
+class FileHandler(RequestHandler):
+
+    def post(self, *args, **kwargs):
+        try:
+            file_metas=self.request.files['file'] # 提取表单中name为file的文件元数据
+            for meta in file_metas:
+                filename=meta['filename'].split(os.path.sep)[-1]
+                filepath=os.path.join(UPLOAD_PATH,filename)
+                print filepath
+                with open(filepath,'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
+                    up.write(meta['body'])
+                self.set_status(200, 'ok')
+                self.finish()
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            # todo 定制异常
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
 
 
