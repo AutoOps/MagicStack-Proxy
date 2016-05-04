@@ -21,7 +21,7 @@ from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 
 from common.base import RequestHandler
-from common.cobbler_api import System, Distros, Event
+from common.cobbler_api import System, Distros, Event, Profile
 from utils.auth import auth
 from conf.settings import UPLOAD_PATH
 
@@ -275,6 +275,30 @@ class EventSingalHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
+
+class ProfileHandler(RequestHandler):
+
+    def get(self, *args, **kwargs):
+        try:
+            profile = Profile()
+            item_names = profile.get_item_names()
+            if len(item_names) == 0:
+                self.set_status(404)
+                self.finish()
+            else:
+                self.set_status(200, 'ok')
+                self.finish({'profiles':item_names})
+
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            # todo 定制异常
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
+
 
 
 class FileHandler(RequestHandler):

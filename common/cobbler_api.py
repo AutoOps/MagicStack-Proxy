@@ -382,11 +382,20 @@ class Distros(Cobbler):
         return result
 
 class Profile(Cobbler):
-    def get_items(self, name=None):
-        pass
+
+    TYPE = 'profile'
+
+    def get_items(self):
+        remote = self.get_remote()
+        return remote.get_profiles()
 
     def get_item(self, name):
-        return self.get_items(name)
+        remote = self.get_remote()
+        return remote.get_profile(name)
+
+    def get_item_names(self):
+        remote = self.get_remote()
+        return remote.get_item_names(self.TYPE)
 
 class Event(Cobbler):
 
@@ -482,5 +491,9 @@ if __name__ == "__main__":
     # remote = cobbler.get_remote()
     # print remote.get_event_log()
     #print event.get_events()
-    system = System()
-    system.get('test123456')
+    # system = System()
+    # system.get('test123456')
+    profile = Profile()
+    #profile.get_items()
+    #print profile.get_item( '9f36d214-0858-11e6-97d2-fa163e763553-x86_64' )
+    print profile.get_item_names()
