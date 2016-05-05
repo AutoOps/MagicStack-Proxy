@@ -26,7 +26,7 @@ def _auth(username, timestamp, hexdigest):
     now_date = datetime.datetime.now()
     interval = now_date - timestamp2date
     # 校验时间戳
-    if abs(interval.seconds)>TIMESTAMP_AVAI:
+    if abs(interval.total_seconds())>TIMESTAMP_AVAI:
         return False
     # 校验用户
     users = get_users()
@@ -74,4 +74,5 @@ if __name__ == "__main__":
     vhamc = hmac.new('123456')
     vhamc.update(message)
     vv = vhamc.hexdigest()
-    print auth('test', times, vv)
+    print int(times), vv
+    print _auth('test', times, vv)
