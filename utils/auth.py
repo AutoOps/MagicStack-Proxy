@@ -26,7 +26,7 @@ def _auth(username, timestamp, hexdigest):
     now_date = datetime.datetime.now()
     interval = now_date - timestamp2date
     # 校验时间戳
-    if interval.seconds<0 or interval.seconds>TIMESTAMP_AVAI:
+    if abs(interval.seconds)>TIMESTAMP_AVAI:
         return False
     # 校验用户
     users = get_users()
