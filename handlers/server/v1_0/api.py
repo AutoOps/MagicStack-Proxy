@@ -32,7 +32,7 @@ class SystemActionHandler(RequestHandler):
         服务器操作，批量开机/关机/重启
     """
 
-    #@auth
+    @auth
     def post(self, *args, **kwargs):
         try:
             params = json.loads(self.request.body)
@@ -85,7 +85,7 @@ class SystemHandler(RequestHandler):
         服务器
     """
 
-    #@auth
+    @auth
     def get(self, *args, **kwargs):
         system_id = kwargs.get('system_id')
         try:
@@ -108,7 +108,7 @@ class SystemHandler(RequestHandler):
             self.finish({'messege':'failed'})
 
 
-    #@auth
+    @auth
     def post(self, *args, **kwargs):
         """
             创建服务器
@@ -132,7 +132,7 @@ class SystemHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
-    #@auth
+    @auth
     def put(self, *args, **kwargs):
         """
             修改服务器
@@ -162,7 +162,25 @@ class SystemHandler(RequestHandler):
         """
             删除服务器
         """
-        pass
+        try:
+            params = json.loads(self.request.body)
+            system = System()
+            system_name = params.get('name', None)
+            system.delete(system_name)
+            self.set_status(200, 'success')
+            self.finish({'messege':'success'})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
 class DistrosHandler(RequestHandler):
 
@@ -181,6 +199,7 @@ class DistrosHandler(RequestHandler):
 
     @asynchronous
     @coroutine
+    @auth
     def post(self, *args, **kwargs):
         try:
             params = json.loads(self.request.body)
@@ -220,9 +239,11 @@ class DistrosHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
+    @auth
     def delete(self, *args, **kwargs):
         pass
 
+    @auth
     def get(self, *args, **kwargs):
         distro_id = kwargs.get('distro_id')
         try:
@@ -245,6 +266,7 @@ class DistrosHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
+    @auth
     def put(self, *args, **kwargs):
         pass
 
@@ -260,6 +282,7 @@ class DistrosHandler(RequestHandler):
 
 class EventSingalHandler(RequestHandler):
 
+    @auth
     def get(self, event_id, *args, **kwargs):
         try:
            event = Event()
@@ -278,6 +301,7 @@ class EventSingalHandler(RequestHandler):
 
 class ProfileHandler(RequestHandler):
 
+    @auth
     def get(self, *args, **kwargs):
         try:
             profile = Profile()
@@ -303,6 +327,7 @@ class ProfileHandler(RequestHandler):
 
 class FileHandler(RequestHandler):
 
+    @auth
     def post(self, *args, **kwargs):
         try:
             file_metas=self.request.files['file'] # 提取表单中name为file的文件元数据

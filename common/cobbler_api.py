@@ -277,9 +277,15 @@ class System(Cobbler):
         sync_task = remote.sync(token)
         return sync_task
 
-    def delete(self, params):
+    def delete(self, system_name):
         remote = self.get_remote()
         token = self.get_token()
+        if not remote.has_item(self.TYPE, system_name):
+            raise HTTPError(404,'System {0} not found'.format(system_name))
+        remote.remove_system(system_name,token)
+        logger.info("sync system info")
+        sync_task = remote.sync(token)
+        return sync_task
 
     def get_item(self, system_name):
         remote = self.get_remote()
@@ -288,8 +294,6 @@ class System(Cobbler):
         if not isinstance(result, dict):
             raise HTTPError(404, 'system not found')
         return result
-
-
 
 
 class Distros(Cobbler):
@@ -493,7 +497,9 @@ if __name__ == "__main__":
     #print event.get_events()
     # system = System()
     # system.get('test123456')
-    profile = Profile()
+    # profile = Profile()
     #profile.get_items()
     #print profile.get_item( '9f36d214-0858-11e6-97d2-fa163e763553-x86_64' )
-    print profile.get_item_names()
+    # print profile.get_item_names()
+    system = System()
+    print system.delete('test123456')

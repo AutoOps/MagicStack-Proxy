@@ -36,3 +36,7 @@ USERS = {
 TIMESTAMP_AVAI = 15*60 # seconds
 
 UPLOAD_PATH = os.path.join(os.path.dirname(__file__),'..', 'upload_files')
+
+BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+KEY_DIR = os.path.join(BASE_DIR, 'keys')
