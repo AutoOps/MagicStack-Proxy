@@ -26,9 +26,8 @@ class ResultsCollector(CallbackBase):
         self.host_failed[result._host.get_name()] = result
 
 
-def exec_play(mod_name, *args, **kwargs):
+def exec_play(mod_name, host_list, *args, **kwargs):
     exec_result = {'success':[], 'failed':[], 'unreachable':[]}
-    host_list = ['localhost', 'www.example.com', 'www.google.com']
     Options = namedtuple('Options', ['connection','module_path', 'forks', 'remote_user',
             'private_key_file', 'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
             'scp_extra_args', 'become', 'become_method', 'become_user', 'verbosity', 'check'])
@@ -87,4 +86,4 @@ def exec_play(mod_name, *args, **kwargs):
     return exec_result
 
 if __name__ == '__main__':
-    exec_module('command',chdir='/home', cmd='ls')
+    exec_play('command',chdir='/home', cmd='ls')

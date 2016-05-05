@@ -8,14 +8,15 @@ try:
 except ImportError:
     import json
 
-from tornado.web import RequestHandler
-from tornado.web import asynchronous
+from tornado.web import RequestHandler, asynchronous, HTTPError
 from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from ansible_play import exec_play
 from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
+from utils.auth import auth
+import traceback
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(filename)s [line:%(lineno)d]   %(levelname)s   %(message)s")
@@ -23,9 +24,8 @@ logger = logging.getLogger('ansible_module')
 
 ANSIBLE_PATHS = {'core': '/usr/lib/python2.7/site-packages/ansible/modules/core', 'extra': '/usr/lib/python2.7/site-packages/ansible/modules/extras'}
 
-global res_play
+
 global res_playbook
-res_play = None
 res_playbook = None
 
 
@@ -46,17 +46,27 @@ class GenModulesHandler(RequestHandler):
 class ExecPlayHandler(RequestHandler):
     executor = ThreadPoolExecutor(2)
 
-    @asynchronous
-    @coroutine
+    @auth
     def post(self, *args, **kwargs):
-        param = json.loads(self.request.body)
-        mod_name = param['name']
-        global res_play
-        res_play = exec_play(mod_name, {})
-        self.write({
-            'state': '正在执行命令.....',
-        })
-        self.finish()
+        try:
+            param = json.loads(self.request.body)
+            mod_name = param.get('mod_name')
+            host_list = param.get('host_list')
+            res_play = exec_play(mod_name, host_list)
+            self.set_status(200, 'success')
+            self.finish({'messege': res_play})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError as http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
 
 class ExecPlayResultHandler(RequestHandler):
