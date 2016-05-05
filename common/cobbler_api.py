@@ -277,15 +277,18 @@ class System(Cobbler):
         sync_task = remote.sync(token)
         return sync_task
 
-    def delete(self, system_name):
+    def delete(self, system_names):
+        if not isinstance(system_names, (list, tuple)):
+            raise HTTPError(400, 'params must be list or tuple')
         remote = self.get_remote()
         token = self.get_token()
-        if not remote.has_item(self.TYPE, system_name):
-            raise HTTPError(404,'System {0} not found'.format(system_name))
-        remote.remove_system(system_name,token)
-        logger.info("sync system info")
-        sync_task = remote.sync(token)
-        return sync_task
+        error_list = []
+        for obj_name in system_names:
+            try:
+                remote.xapi_object_edit('system', obj_name, "remove", {'name': obj_name, 'recursive': False}, token)
+            except xmlrpclib.Fault, msg:
+                error_list.append('{0} delete failed，error info {1}'.format(obj_name, msg.faultString))
+        return error_list
 
     def get_item(self, system_name):
         remote = self.get_remote()

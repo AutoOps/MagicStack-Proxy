@@ -165,10 +165,13 @@ class SystemHandler(RequestHandler):
         try:
             params = json.loads(self.request.body)
             system = System()
-            system_name = params.get('name', None)
-            system.delete(system_name)
-            self.set_status(200, 'success')
-            self.finish({'messege':'success'})
+            system_names = params.get('names', None)
+            error_info = system.delete(system_names)
+            self.set_status(200)
+            if error_info:
+                self.finish({'messege':error_info})
+            else:
+                self.finish({'messege':'success'})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
