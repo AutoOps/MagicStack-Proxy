@@ -12,7 +12,7 @@ from tornado.web import RequestHandler, asynchronous, HTTPError
 from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
-from ansible_play import exec_play
+from ansible_play import MyRunner
 from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
 from utils.auth import auth
@@ -44,15 +44,16 @@ class GenModulesHandler(RequestHandler):
 
 
 class ExecPlayHandler(RequestHandler):
-    executor = ThreadPoolExecutor(2)
 
     @auth
     def post(self, *args, **kwargs):
         try:
             param = json.loads(self.request.body)
             mod_name = param.get('mod_name')
-            host_list = param.get('host_list')
-            res_play = exec_play(mod_name, host_list)
+            resource = param.get('resource')
+            host_list = param.get('hosts')
+            my_runner = MyRunner(resource)
+            res_play = my_runner.run(host_list, mod_name)
             self.set_status(200, 'success')
             self.finish({'messege': res_play})
         except ValueError:
@@ -76,7 +77,7 @@ class ExecPlayResultHandler(RequestHandler):
     @coroutine
     def get(self, *args, **kwargs):
         self.write({
-            'result': res_play,
+            'result': 'res_play',
         })
         self.finish()
 
