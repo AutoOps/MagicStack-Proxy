@@ -87,7 +87,7 @@ class MyRunner(object):
         self.resource = resource
         self.results_raw = {}
 
-    def run(self, host_list, module_name=None, **kwargs):
+    def run(self, host_list, module_name, module_args,):
         """
         run module from andible ad-hoc.
         module_name: ansible module_name
@@ -117,7 +117,7 @@ class MyRunner(object):
                 name="Ansible Play",
                 hosts=host_list,
                 gather_facts='no',
-                tasks=[dict(action=dict(module=module_name, args=dict(**kwargs)))]
+                tasks=[dict(action=dict(module=module_name, args=module_args))]
         )
         play = Play().load(play_source, variable_manager=variable_manager, loader=loader)
 
