@@ -151,6 +151,82 @@ class MyRunner(object):
         return self.results_raw
 
 
+class MyWSRunner(MyRunner):
+    """
+    This is a General object for parallel execute modules.
+    """
+
+    def __init__(self, resource, *args, **kwargs):
+        self.resource = resource
+        self.loader = DataLoader()
+        self.variable_manager = VariableManager()
+        self.inventory = self._set_inventory(resource)
+        self.results_raw = {}
+
+    def _set_inventory(self, resource):
+        # initialize needed objects
+        inventory = MyInventory(resource, self.loader, self.variable_manager).inventory
+        self.variable_manager.set_inventory(inventory)
+        return inventory
+
+    def run(self, host_list, module_name, module_args,):
+        """
+        run module from andible ad-hoc.
+        module_name: ansible module_name
+        module_args: ansible module args
+        """
+        self.results_raw = {'success':{}, 'failed':{}, 'unreachable':{}}
+        Options = namedtuple('Options', ['connection','module_path', 'forks', 'timeout',  'remote_user',
+                'ask_pass', 'private_key_file', 'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
+                'scp_extra_args', 'become', 'become_method', 'become_user', 'ask_value_pass', 'verbosity', 'check'])
+
+
+        options = Options(connection='smart', module_path='/usr/share/ansible', forks=100, timeout=10,
+                remote_user='root', ask_pass=False, private_key_file=None, ssh_common_args=None, ssh_extra_args=None,
+                sftp_extra_args=None, scp_extra_args=None, become=None, become_method=None,
+                become_user='root',ask_value_pass=False, verbosity=None, check=False)
+
+        passwords = dict(sshpass=None, becomepass=None)
+
+        # create play with tasks
+        play_source = dict(
+                name="Ansible Play",
+                hosts=host_list,
+                gather_facts='no',
+                tasks=[dict(action=dict(module=module_name, args=module_args))]
+        )
+        play = Play().load(play_source, variable_manager=self.variable_manager, loader=self.loader)
+
+        # actually run it
+        tqm = None
+        callback = ResultsCollector()
+        try:
+            tqm = TaskQueueManager(
+                    inventory=self.inventory,
+                    variable_manager=self.variable_manager,
+                    loader=self.loader,
+                    options=options,
+                    passwords=passwords,
+            )
+            tqm._stdout_callback = callback
+            result = tqm.run(play)
+        finally:
+            if tqm is not None:
+                tqm.cleanup()
+
+        for host, result in callback.host_ok.items():
+            self.results_raw['success'][host] = result._result.get('stdout') + result._result.get('stderr')
+
+        for host, result in callback.host_failed.items():
+            self.results_raw['failed'][host] = result._result.get('stdout') + result._result.get('stderr')
+
+        for host, result in callback.host_unreachable.items():
+            self.results_raw['unreachable'][host]= result._result['msg']
+
+        logger.info(self.results_raw)
+        return self.results_raw
+
+
 class ResultsCollector(CallbackBase):
 
     def __init__(self, *args, **kwargs):
