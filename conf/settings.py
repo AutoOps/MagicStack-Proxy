@@ -44,7 +44,7 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 KEY_DIR = os.path.join(BASE_DIR, 'keys')
 
 #database
-engine = create_engine('sqlite:///magicstack.db')
+engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR), echo=True)
 Base = declarative_base()
 metadata = MetaData(engine)
 

@@ -1,4 +1,11 @@
 # -*- coding:utf-8 -*-
+import sys
+import os
+#将工程路径添加到sys.path中
+PROJECT_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir))
+path = os.path.dirname(PROJECT_PATH)
+sys.path.append(path)
+
 from sqlalchemy import Table, Column, String, Text,Integer, DateTime, Boolean, Enum,ForeignKey
 from sqlalchemy.orm import relationship
 from conf.settings import engine, Base
@@ -118,8 +125,8 @@ class Asset(Base):
     cabinet = Column(String(30))
     position = Column(Integer)
     number = Column(String(30))
-    machine_status = Column(Enum("已使用", "未使用", "报废"))
-    asset_type = Column(Enum("物理机", "虚拟机", "交换机", "路由器","防火墙", "Docker", "其他"))
+    machine_status = Column(Enum(u"已使用", u"未使用", u"报废"))
+    asset_type = Column(Enum(u"物理机", u"虚拟机", u"交换机", u"路由器",u"防火墙", u"Docker", u"其他"))
     sn = Column(String(128))
     proxy_id = Column(Integer, ForeignKey('proxy.id'))
     proxy = relationship('Proxy')
