@@ -9,7 +9,6 @@
 import logging
 import os
 from sqlalchemy import create_engine, MetaData
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 logging.basicConfig(
@@ -47,8 +46,5 @@ KEY_DIR = os.path.join(BASE_DIR, 'keys')
 #database
 engine = create_engine('sqlite:///magicstack.db')
 Base = declarative_base()
-
 metadata = MetaData(engine)
-Session = sessionmaker()
-Session.configure(bind=engine)
-session = Session()
+
