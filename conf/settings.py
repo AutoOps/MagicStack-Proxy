@@ -8,6 +8,9 @@
 
 import logging
 import os
+from sqlalchemy import create_engine, MetaData
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 
 logging.basicConfig(
                     level = logging.DEBUG,
@@ -40,3 +43,12 @@ UPLOAD_PATH = os.path.join(os.path.dirname(__file__),'..', 'upload_files')
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 KEY_DIR = os.path.join(BASE_DIR, 'keys')
+
+#database
+engine = create_engine('sqlite:///magicstack.db')
+Base = declarative_base()
+
+metadata = MetaData(engine)
+Session = sessionmaker()
+Session.configure(bind=engine)
+session = Session()
