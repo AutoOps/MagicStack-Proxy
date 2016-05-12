@@ -16,7 +16,7 @@ models = [
     "zoos.v1_0.urls",
     "server.v1_0.urls",
     "ansible.v1_0.urls",
-    #"websocket.v1_0.urls",
+    "websocket.v1_0.urls",
 ]
 
 for mod in models:

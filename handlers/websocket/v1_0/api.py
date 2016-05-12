@@ -12,16 +12,22 @@ import datetime
 import time
 import select
 import sys
-import threading
+import traceback
+import os
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
-from tornado.websocket import WebSocketHandler, WebSocketClosedError
+from tornado.websocket import WebSocketHandler
+from tornado.web import HTTPError
 
-from common.connect import Tty
+from common.base import RequestHandler
+from utils.auth import auth
+
+from util import renderJSON, WebTty, MyThread
+
 
 logger = logging.getLogger()
 
@@ -45,6 +51,7 @@ class WebTerminalHandler(WebSocketHandler):
     def check_origin(self, origin):
         return True
 
+    #@auth
     def open(self):
         logger.debug('Websocket: Open request')
 
@@ -105,7 +112,7 @@ class WebTerminalHandler(WebSocketHandler):
                 self.term.vim_data = ''
                 self.term.data = ''
                 self.term.input_mode = False
-            # 执行命令
+                # 执行命令
             self.channel.send(jsondata['data'])
         else:
             pass
@@ -139,7 +146,7 @@ class WebTerminalHandler(WebSocketHandler):
                 r, w, e = select.select([self.channel, sys.stdin], [], [])
                 if self.channel in r:
                     recv = self.channel.recv(1024)
-                    logger.info( recv )
+                    logger.info(recv)
                     if not len(recv):
                         return
                     data += recv
@@ -162,20 +169,30 @@ class WebTerminalHandler(WebSocketHandler):
             pass
 
 
-class MyThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        super(MyThread, self).__init__(*args, **kwargs)
-
-    def run(self):
+class  LogInfoHandler(RequestHandler):
+    def get(self, *args, **kwargs):
         try:
-            super(MyThread, self).run()
-        except WebSocketClosedError:
-            pass
-
-
-class WebTty(Tty):
-    def __init__(self, *args, **kwargs):
-        super(WebTty, self).__init__(*args, **kwargs)
-        self.ws = None
-        self.data = ''
-        self.input_mode = False
+            # 1获取ID
+            log_id = kwargs.get('log_id')
+            # 2数据库获取信息     todo
+            # 3读取文件，返回信息
+            timef = "/home/flask/projects/jumpserver/jumpserver/logs/tty/20160511/test_123.57.209.233_135417.time"
+            scriptf = "/home/flask/projects/jumpserver/jumpserver/logs/tty/20160511/test_123.57.209.233_135417.log"
+            if os.path.isfile(scriptf) and os.path.isfile(timef):
+                content = renderJSON(scriptf, timef)
+                self.set_status(200)
+                self.finish({'content':content})
+            else:
+                raise HTTPError(404)
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege': 'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
