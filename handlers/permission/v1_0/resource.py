@@ -11,12 +11,20 @@ logger = logging.getLogger()
 
 def get_perm_info(role_id):
     info = {}
-
     #建立数据库连接
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
-        info['role'] = session.query(PermRole).filter_by(id=int(role_id)).first()
+        role = session.query(PermRole).filter_by(id=int(role_id)).first()
+        sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added, commands=item.commands, comment=item.comment)
+                     for item in role.sudo]
+
+        role_info = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
+                         date_added=role.date_added,
+                         comment=role.comment,
+                         sudo=sudo_list
+        )
+        info['role'] = role_info
         info['assets'] = session.query(Asset).all()
         info['asset_groups'] = session.query(AssetGroup).all()
     except Exception as e:
