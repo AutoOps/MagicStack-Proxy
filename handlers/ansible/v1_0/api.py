@@ -33,6 +33,10 @@ res_playbook = None
 
 
 class GenModulesHandler(RequestHandler):
+    """
+       获取ansible的所有模块
+    """
+
     executor = ThreadPoolExecutor(2)
 
     @asynchronous
@@ -47,6 +51,9 @@ class GenModulesHandler(RequestHandler):
 
 
 class ExecPlayHandler(RequestHandler):
+    """
+       执行ansible命令 ad-hoc
+    """
     @auth
     def post(self, *args, **kwargs):
         try:
@@ -86,6 +93,9 @@ class ExecPlayResultHandler(RequestHandler):
 
 
 class ExecPlayBookHandler(RequestHandler):
+    """
+       执行ansible playbook
+    """
     executor = ThreadPoolExecutor(2)
 
     @asynchronous
