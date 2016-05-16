@@ -18,11 +18,12 @@ logger = logging.getLogger()
 
 
 class PermObjectsHandler(RequestHandler):
-    """
-       获取所有的object对象
-    """
+
     @auth
     def get(self, *args, **kwargs):
+        """
+        获取数据
+        """
         try:
             obj_name = kwargs.get('obj_name')
             perm_objs = get_all_objects(obj_name)
@@ -41,13 +42,11 @@ class PermObjectsHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
-
-class PermObjectSaveHandler(RequestHandler):
-    """
-       把object对象保存到数据库中
-    """
     @auth
-    def get(self, *args, **kwargs):
+    def post(self, *args, **kwargs):
+        """
+        保存数据
+        """
         try:
             obj_name = kwargs.get('obj_name')
             params = json.loads(self.request.body)
@@ -66,6 +65,7 @@ class PermObjectSaveHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
+
 
 class PermInfoHandler(RequestHandler):
     """

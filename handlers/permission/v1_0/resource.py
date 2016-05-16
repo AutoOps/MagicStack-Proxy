@@ -88,14 +88,13 @@ def get_perm_info(role_id):
     session = Session()
     try:
         role = session.query(PermRole).filter_by(id=int(role_id)).first()
-        sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added, commands=item.commands, comment=item.comment)
-                     for item in role.sudo]
+        sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
+                     commands=item.commands, comment=item.comment) for item in role.sudo]
 
         role_info = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
                          date_added=role.date_added,
                          comment=role.comment,
-                         sudo=sudo_list
-        )
+                         sudo=sudo_list)
         info['role'] = role_info
         info['assets'] = session.query(Asset).all()
         info['asset_groups'] = session.query(AssetGroup).all()
@@ -110,10 +109,10 @@ def permrole_to_dict(role):
     """
     把role对象装换成dict
     """
-    sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added, commands=item.commands,
-                      comment=item.comment) for item in role.sudo]
+    sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
+                      commands=item.commands, comment=item.comment) for item in role.sudo]
     res = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
-               date_added=role.date_added,
+               date_added=role.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
                comment=role.comment,
                sudo=sudo_list)
     return res
@@ -131,7 +130,7 @@ def permrule_to_dict(rule):
     for item in rule.role:
         r = permrole_to_dict(item)
         role_list.append(r)
-    res = dict(id=rule.id, date_added=rule.date_added, name=rule.name, comment=rule.comment,
+    res = dict(id=rule.id, date_added=rule.date_added.strftime('%Y-%m-%d  %H:%M:%S'), name=rule.name, comment=rule.comment,
                asset=assets, asset_group=asset_groups, user=users, user_group=user_groups, role=role_list)
     return res
 
@@ -147,7 +146,7 @@ def permpush_to_dict(push):
         role_list.append(r)
     res = dict(id=push.id, asset=asset_list, role=role_list, success=push.success,
                result=push.result, is_public_key=push.is_public_key,
-               is_password=push.is_password, date_added=push.date_added)
+               is_password=push.is_password, date_added=push.date_added.strftime('%Y-%m-%d  %H:%M:%S'))
     return res
 
 
@@ -189,6 +188,7 @@ def save_permrole(session, param):
     now = datetime.datetime.now()
     try:
         role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
+        logger.info('save_permrole:%s'%role)
         key_content = param['key_content']
         if key_content:
             try:
@@ -207,11 +207,20 @@ def save_permrole(session, param):
         logger.error(e)
 
 
+def save_permsudo(session, param):
+    now = datetime.datetime.now()
+    try:
+        sudo = PermSudo(**param)
+        sudo.date_added = now
+        session.add(sudo)
+        session.commit()
+    except Exception as e:
+        logger.error(e)
+
+
 def save_object(obj_name, param):
     """
     保存数据
-    :param obj_name:
-    :return:
     """
     msg = 'success'
     Session = sessionmaker()
@@ -220,6 +229,8 @@ def save_object(obj_name, param):
     try:
         if obj_name == "PermRole":
             save_permrole(session, param)
+        elif obj_name == "PermSudo":
+            save_permsudo(session, param)
     except Exception as e:
         logger.error(e)
         msg = 'error'
