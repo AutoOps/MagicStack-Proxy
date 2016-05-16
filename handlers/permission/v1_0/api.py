@@ -12,7 +12,7 @@ from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from common.base import RequestHandler
 from utils.auth import auth
-from resource import get_perm_info, get_all_objects
+from resource import get_perm_info, get_all_objects, save_object
 
 logger = logging.getLogger()
 
@@ -50,9 +50,10 @@ class PermObjectSaveHandler(RequestHandler):
     def get(self, *args, **kwargs):
         try:
             obj_name = kwargs.get('obj_name')
-            perm_objs = get_all_objects(obj_name)
+            params = json.loads(self.request.body)
+            msg = save_object(obj_name, params)
             self.set_status(200, 'success')
-            self.finish({'messege': perm_objs})
+            self.finish({'messege': msg})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')

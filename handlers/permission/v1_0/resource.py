@@ -166,7 +166,7 @@ def get_all_objects(name):
                 res.append(r)
         elif name == 'PermSudo':
             sudos = session.query(PermSudo).all()
-            res = [dict(id=item.id, name=item.name, date_added=item.date_added, commands=item.commands,
+            res = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d %H:%M:%S'), commands=item.commands,
                         comment=item.comment) for item in sudos]
         elif name == 'PermRule':
             rules = session.query(PermRule).all()
@@ -213,14 +213,17 @@ def save_object(obj_name, param):
     :param obj_name:
     :return:
     """
+    msg = 'success'
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
     try:
         if obj_name == "PermRole":
-            role = PermRole(**param)
+            save_permrole(session, param)
     except Exception as e:
         logger.error(e)
+        msg = 'error'
     finally:
         session.close()
+    return msg
 
