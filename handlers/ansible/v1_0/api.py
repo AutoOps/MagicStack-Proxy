@@ -20,6 +20,10 @@ from ansible_play import MyRunner, MyWSRunner
 from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
 from utils.auth import auth
+from utils.utils import get_dbsession, get_group_user_perm, gen_resource
+from dbcollections.logrecords.models import ExecLog
+from dbcollections.permission.models import PermRole
+
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(filename)s [line:%(lineno)d]   %(levelname)s   %(message)s")
@@ -54,6 +58,7 @@ class ExecPlayHandler(RequestHandler):
     """
        执行ansible命令 ad-hoc
     """
+
     @auth
     def post(self, *args, **kwargs):
         try:
@@ -136,6 +141,7 @@ class ExecHandler(WebSocketHandler):
         self.assets = []
         self.perm = {}
         self.remote_ip = ''
+        self.host_list = []
         super(ExecHandler, self).__init__(*args, **kwargs)
 
     def check_origin(self, origin):
@@ -148,26 +154,27 @@ class ExecHandler(WebSocketHandler):
         if not self.remote_ip:
             self.remote_ip = self.request.remote_ip
         logger.info('Web exec cmd: request user %s' % role_name)
-        # 1.根据角色获取权限 TODO
-        #self.role = get_object(PermRole, name=role_name)
-        # 2.根据用户获取权限     TODO
-        #self.perm = get_group_user_perm(self.user)
+        # 1.根据角色获取权限
+        se = get_dbsession()
+        self.role = se.query(PermRole).filter_by(name=role_name).all()
+        # 2.根据用户获取权限
+        self.perm = get_group_user_perm(se, self.user)
         # 3.验证用户是否满足权限
-        # roles = self.perm.get('role').keys()
-        # if self.role not in roles:
-        #     self.write_message('No perm that role %s' % role_name)
-        #     self.close()
-        # self.assets = self.perm.get('role').get(self.role).get('asset')
+        roles = self.perm.get('role').keys()
+        if self.role not in roles:
+            self.write_message('No perm that role %s' % role_name)
+            self.close()
+        self.assets = self.perm.get('role').get(self.role).get('asset')
         # 4.获取用户可用资产
-        #res = gen_resource({'user': self.user, 'asset': self.assets, 'role': self.role})
+        res = gen_resource(se, {'user': self.user, 'asset': self.assets, 'role': self.role})
+        for r in res:
+            self.host_list.append(r['ip'])
+
         # 5.输出可操作资产
-        #TODO
-        res = [{'username': u'****', 'ip': u'123.57.209.233', 'hostname': u'123.57.209.233', 'port': 22, 'password':'****'}]
         self.runner = MyWSRunner(res)
-        #message = '有权限的主机: ' + ', '.join([asset.hostname for asset in self.assets])
+        message = ', '.join([asset.hostname for asset in self.assets])
         self.__class__.clients.append(self)
-        #self.write_message(message)
-        self.write_message('please enter command')
+        self.write_message(message)
 
     def on_message(self, message):
         data = json.loads(message)
@@ -192,13 +199,17 @@ class ExecHandler(WebSocketHandler):
 
     def run_cmd(self, command, pattern):
 
-        # 1.根据pattern获取host_list #TODO
-        host_list = ['123.57.209.233'] # pattern=pattern
-        res_play = self.runner.run(host_list, 'shell', command)
-        print res_play
-        # 1.记录日志 TODO
-        # ExecLog(host=self.asset_name_str, cmd=self.command, user=self.user.username,
-        #         remote_ip=self.remote_ip, result=self.runner.results).save()
+        res_play = self.runner.run(self.host_list, 'shell', command)
+
+        # 记录日志
+        execlog = ExecLog(host=self.asset_name_str,
+                          cmd=command,
+                          user=self.user.username,
+                          remote_ip=self.remote_ip,
+                          result=self.runner.results)
+        se = get_dbsession()
+        se.add(execlog)
+
         newline_pattern = re.compile(r'\n')
         for k, v in res_play.items():
             for host, output in v.items():

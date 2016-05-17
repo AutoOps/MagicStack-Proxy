@@ -23,9 +23,12 @@ except ImportError:
 from tornado.websocket import WebSocketHandler
 from tornado.web import HTTPError
 
+from dbcollections.logrecords.models import TermLog
+from dbcollections.asset.models import Asset
+from dbcollections.account.models import User
 from common.base import RequestHandler
 from utils.auth import auth
-
+from utils.utils import get_dbsession, user_have_perm
 from util import renderJSON, WebTty, MyThread
 
 
@@ -46,6 +49,7 @@ class WebTerminalHandler(WebSocketHandler):
         self.ssh = None
         self.channel = None
         self.threads = []
+        self.se = get_dbsession()
         super(WebTerminalHandler, self).__init__(*args, **kwargs)
 
     def check_origin(self, origin):
@@ -54,12 +58,36 @@ class WebTerminalHandler(WebSocketHandler):
     #@auth
     def open(self):
         logger.debug('Websocket: Open request')
-
+        role_name = self.get_argument('role', 'sb')
+        asset_id = self.get_argument('id', 9999)
+        user_id = self.get_argument('user_id', -1)
+        asset = self.se.query(Asset).filter_by(id=asset_id)
+        self.user = self.se.query(User).filter_by(id=user_id)
+        self.termlog = self.se.query(TermLog).filter(user=self.user)
+        if asset:
+            roles = user_have_perm(self.user, asset)
+            logger.debug(roles)
+            login_role = ''
+            for role in roles:
+                if role.name == role_name:
+                    login_role = role
+                    break
+            if not login_role:
+                logger.warning('Websocket: Not that Role %s for Host: %s User: %s ' % (role_name, asset.hostname,
+                                                                                       self.user.username))
+                self.close()
+                return
+        else:
+            logger.warning('Websocket: No that Host: %s User: %s ' % (asset_id, self.user.username))
+            self.close()
+            return
+        logger.debug('Websocket: request web terminal Host: %s User: %s Role: %s' % (asset.hostname, self.user.username,
+                                                                                     login_role.name))
         self.term = WebTty(self.user, login_type='web')
         self.term.remote_ip = self.request.headers.get("X-Real-IP")
         if not self.term.remote_ip:
             self.term.remote_ip = self.request.remote_ip
-            # ssh方式连接登录
+        # ssh方式连接登录
         self.ssh = self.term.get_connection()
         self.channel = self.ssh.invoke_shell(term='xterm')
         # 1.Websocket客户端列表
