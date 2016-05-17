@@ -54,7 +54,7 @@ IP = config.get('base', 'ip')
 PORT = config.get('base', 'port')
 
 #database
-engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR), echo=True)
+engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR))
 Base = declarative_base()
 metadata = MetaData(engine)
 
