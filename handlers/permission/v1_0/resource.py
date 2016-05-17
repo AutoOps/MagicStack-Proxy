@@ -111,10 +111,15 @@ def permrole_to_dict(role):
     """
     sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
                       commands=item.commands, comment=item.comment) for item in role.sudo]
+    push_list = []
+    for item in role.perm_push:
+        asset_list = {}
+        push_list.append(dict(id=item.id, asset=asset_list, success=item.success,
+               result=item.result, is_public_key=item.is_public_key,
+               is_password=item.is_password, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S')))
     res = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
                date_added=role.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
-               comment=role.comment,
-               sudo=sudo_list)
+               comment=role.comment, sudo=sudo_list, perm_push=push_list)
     return res
 
 
@@ -122,10 +127,10 @@ def permrule_to_dict(rule):
     """
     把rule对象装换成dict
     """
-    assets = rule.asset
-    asset_groups = rule.asset_group
-    users = rule.user
-    user_groups = rule.user_group
+    assets = {}
+    asset_groups = {}
+    users = {}
+    user_groups = {}
     role_list = []
     for item in rule.role:
         r = permrole_to_dict(item)
@@ -137,14 +142,13 @@ def permrule_to_dict(rule):
 
 def permpush_to_dict(push):
     """
-    push对象装换成dict
+    push对象转换成dict
     """
-    asset_list = push.asset
-    role_list = []
-    for item in push.role:
-        r = permrole_to_dict(item)
-        role_list.append(r)
-    res = dict(id=push.id, asset=asset_list, role=role_list, success=push.success,
+    # asset_list = push.asset
+    asset_list = {}
+    role = push.role
+    role = permrole_to_dict(role)
+    res = dict(id=push.id, asset=asset_list, role=role, success=push.success,
                result=push.result, is_public_key=push.is_public_key,
                is_password=push.is_password, date_added=push.date_added.strftime('%Y-%m-%d  %H:%M:%S'))
     return res
@@ -188,6 +192,7 @@ def get_one_object(name, obj_id):
     """
     获取对应id的object
     """
+    res = {}
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
@@ -266,8 +271,28 @@ def save_object(obj_name, param):
     return msg
 
 
-def update_permrole(session, param):
-    pass
+def update_permrole(session,obj_id, param):
+    try:
+        role = session.query(PermRole).filter_by(id=int(obj_id))
+        key_content = param['key_content']
+        # 生成随机密码，生成秘钥对
+        key_path = ''
+        if key_content:
+            try:
+                key_path = gen_keys(key=key_content, key_path_dir=role['key_path'])
+            except SSHException:
+                raise ServerError('输入的密钥不合法')
+            logger.debug('Recreate role key: %s' % role['key_path'])
+        sudo_list = []
+        for item in param['sudo_ids']:
+            sudo_list.append(session.query(PermSudo).get(int(item)))
+        role.name = param['name']
+        role.password = param['password']
+        role.key_path = key_path
+        role.sudo = sudo_list
+        session.commit()
+    except Exception as e:
+        logger.error(e)
 
 
 def update_permsudo(session, obj_id, param):
@@ -300,7 +325,22 @@ def update_object(obj_name, obj_id, param):
 
 
 def delete_permrole(session, obj_id):
-    pass
+    try:
+        role = session.query(PermRole).get(obj_id)
+        role_key = role['key_path']
+        #删除存储的秘钥，以及目录
+        try:
+            key_files = os.listdir(role_key)
+            for key_file in key_files:
+                os.remove(os.path.join(role_key, key_file))
+            os.rmdir(role_key)
+        except OSError, e:
+            logger.warning(u"Delete Role: delete key error, %s" % e)
+        logger.info(u"delete role %s - delete role key directory: %s" % (role.name, role_key))
+        session.delete(role)
+        session.commit()
+    except Exception as e:
+        logger.error(e)
 
 
 def delete_permsudo(session, obj_id):
@@ -310,6 +350,15 @@ def delete_permsudo(session, obj_id):
         session.commit()
     except Exception as e:
           logger.error(e)
+
+
+def delete_permrule(session, obj_id):
+    try:
+        rule = session.query(PermRule).get(obj_id)
+        session.delete(rule)
+        session.commit()
+    except Exception as e:
+        logger.error(e)
 
 
 def delete_object(obj_name, obj_id):
@@ -325,6 +374,8 @@ def delete_object(obj_name, obj_id):
             delete_permrole(session, obj_id)
         elif obj_name == "PermSudo":
             delete_permsudo(session, obj_id)
+        elif obj_name == "PermRule":
+            delete_permrule(session, obj_id)
     except Exception as e:
         logger.error(e)
         msg = 'error'
