@@ -20,6 +20,7 @@ from dbcollections.asset.models import *
 from dbcollections.account.models import *
 from dbcollections.logrecords.models import *
 
+
 class PyCrypt(object):
     """
     This class used to encrypt and decrypt password.
@@ -97,7 +98,9 @@ class PyCrypt(object):
             raise RuntimeError('Decrypt password error, TYpe error.')
         return plain_text.rstrip('\0')
 
+
 CRYPTOR = PyCrypt(KEY)
+
 
 def get_users():
     """
@@ -283,3 +286,6 @@ def get_asset_info():
 def get_role_key():
     pass
 
+
+def user_have_perm():
+    pass
