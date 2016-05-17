@@ -272,7 +272,7 @@ def update_permrole(session, param):
 
 def update_permsudo(session, obj_id, param):
     try:
-        session.query(PermSudo).get(int(obj_id)).update(**param)
+        session.query(PermSudo).filter_by(id=int(obj_id)).update(param)
         session.commit()
     except Exception as e:
         logger.error(e)
@@ -291,6 +291,40 @@ def update_object(obj_name, obj_id, param):
             update_permrole(session, obj_id, param)
         elif obj_name == "PermSudo":
             update_permsudo(session, obj_id, param)
+    except Exception as e:
+        logger.error(e)
+        msg = 'error'
+    finally:
+        session.close()
+    return msg
+
+
+def delete_permrole(session, obj_id):
+    pass
+
+
+def delete_permsudo(session, obj_id):
+    try:
+        sudo = session.query(PermSudo).get(obj_id)
+        session.delete(sudo)
+        session.commit()
+    except Exception as e:
+          logger.error(e)
+
+
+def delete_object(obj_name, obj_id):
+    """
+    删除数据
+    """
+    msg = 'success'
+    Session = sessionmaker()
+    Session.configure(bind=engine)
+    session = Session()
+    try:
+        if obj_name == "PermRole":
+            delete_permrole(session, obj_id)
+        elif obj_name == "PermSudo":
+            delete_permsudo(session, obj_id)
     except Exception as e:
         logger.error(e)
         msg = 'error'
