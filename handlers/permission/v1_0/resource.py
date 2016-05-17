@@ -184,6 +184,33 @@ def get_all_objects(name):
     return res
 
 
+def get_one_object(name, obj_id):
+    """
+    获取对应id的object
+    """
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        if name == 'PermRole':
+            role = session.query(PermRole).get(int(obj_id))
+            res = permrole_to_dict(role)
+        elif name == 'PermSudo':
+            sudo = session.query(PermSudo).get(int(obj_id))
+            res = dict(id=sudo.id, name=sudo.name, date_added=sudo.date_added.strftime('%Y-%m-%d %H:%M:%S'), commands=sudo.commands,
+                       comment=sudo.comment)
+        elif name == 'PermRule':
+            rule = session.query(PermRule).get(int(obj_id))
+            res = permrule_to_dict(rule)
+        elif name == 'PermPush':
+            record = session.query(PermPush).get(int(obj_id))
+            res = permpush_to_dict(record)
+    except Exception as e:
+        logger.error(e)
+    finally:
+        session.close()
+    return res
+
+
 def save_permrole(session, param):
     now = datetime.datetime.now()
     try:
@@ -199,7 +226,7 @@ def save_permrole(session, param):
             key_path = gen_keys()
         role.key_path = key_path
         sudo_ids = param['sudo_ids']
-        sudo_list = [session.query(PermSudo).filter_by(id=int(item)) for item in sudo_ids]
+        sudo_list = [session.query(PermSudo).get(id=int(item)) for item in sudo_ids]
         role.sudo = sudo_list
         session.add(role)
         session.commit()
@@ -238,3 +265,35 @@ def save_object(obj_name, param):
         session.close()
     return msg
 
+
+def update_permrole(session, param):
+    pass
+
+
+def update_permsudo(session, obj_id, param):
+    try:
+        session.query(PermSudo).get(int(obj_id)).update(**param)
+        session.commit()
+    except Exception as e:
+        logger.error(e)
+
+
+def update_object(obj_name, obj_id, param):
+    """
+    更新数据
+    """
+    msg = 'success'
+    Session = sessionmaker()
+    Session.configure(bind=engine)
+    session = Session()
+    try:
+        if obj_name == "PermRole":
+            update_permrole(session, obj_id, param)
+        elif obj_name == "PermSudo":
+            update_permsudo(session, obj_id, param)
+    except Exception as e:
+        logger.error(e)
+        msg = 'error'
+    finally:
+        session.close()
+    return msg
