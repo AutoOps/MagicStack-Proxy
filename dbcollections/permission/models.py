@@ -121,9 +121,8 @@ class PermPush(Base):
     asset = relationship('Asset',
                          secondary=permpush_asset,
                          backref='perm_push')
-    role = relationship('PermRole',
-                        secondary=permpush_role,
-                        backref='perm_push')
+    role_id = Column(Integer, ForeignKey('perm_role.id'))
+    role = relationship('PermRole')
     is_public_key = Column(Boolean)
     is_password = Column(Boolean)
     success = Column(Boolean)
