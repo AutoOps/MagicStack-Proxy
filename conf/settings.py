@@ -48,12 +48,13 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 KEY_DIR = os.path.join(BASE_DIR, 'keys')
 
 # log
-SSH_KEY_DIR = os.path.join(BASE_DIR, 'keys/role_keys')
-KEY = config.get('base', 'key')
-URL = config.get('base', 'url')
-LOG_LEVEL = config.get('base', 'log')
-IP = config.get('base', 'ip')
-PORT = config.get('base', 'port')
+KEY = ""
+# SSH_KEY_DIR = os.path.join(BASE_DIR, 'keys/role_keys')
+# KEY = config.get('base', 'key')
+# URL = config.get('base', 'url')
+# LOG_LEVEL = config.get('base', 'log')
+# IP = config.get('base', 'ip')
+# PORT = config.get('base', 'port')
 
 #database
 engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR), echo=True)
