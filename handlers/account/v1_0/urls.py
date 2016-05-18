@@ -5,5 +5,5 @@ from handlers.account.v1_0.api import *
 VERSION = 'v1.0'
 
 urls = [
-    url(r'/account/(?P<role_id>.*)/(?P<role_id>.*)$', UserHandler),
+    url(r'/account/(?P<obj_name>.*)/(?P<obj_id>.*)$', UserHandler),
 ]

@@ -73,8 +73,8 @@ def get_one_object(obj_name,obj_id):
 
 def save_user(session, param):
     try:
-        group_id = param['group_id']
-        group_list = [session.query(UserGroup).get(int(item)) for item in group_id]
+        group_ids = param['group_ids']
+        group_list = [session.query(UserGroup).get(int(item)) for item in group_ids]
         user = User(username=param['username'], password=param['password'], email=param['email'],
                     is_active=param['is_active'], uuid=param['uuid'], role=param['role'], ssh_key_pwd=param['ssh_key_pwd'],
                     group=group_list)
@@ -94,6 +94,7 @@ def save_usergroup(session, param):
 
 
 def save_object(obj_name, param):
+    msg = 'success'
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
@@ -104,14 +105,15 @@ def save_object(obj_name, param):
             save_usergroup(session, param)
     except Exception as e:
         logger.error(e)
+        msg = 'error'
     finally:
         session.close()
-
+    return msg
 
 def update_user(session, obj_id, param):
     try:
-        group_id = param['group_id']
-        group_list = [session.query(UserGroup).get(int(item)) for item in group_id]
+        group_ids = param['group_ids']
+        group_list = [session.query(UserGroup).get(int(item)) for item in group_ids]
         user = session.query(User).get(int(obj_id))
         user.username = param['username']
         user.password = param['password']
@@ -135,6 +137,7 @@ def update_usergroup(session,obj_id, param):
 
 
 def update_object(obj_name, obj_id, param):
+    msg = 'success'
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
@@ -145,11 +148,14 @@ def update_object(obj_name, obj_id, param):
             update_usergroup(session, obj_id, param)
     except Exception as e:
         logger.error(e)
+        msg = 'error'
     finally:
         session.close()
+    return msg
 
 
 def delete_object(obj_name, obj_id):
+    msg = 'success'
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
@@ -165,5 +171,7 @@ def delete_object(obj_name, obj_id):
         session.commit()
     except Exception as e:
         logger.error(e)
+        msg = 'error'
     finally:
         session.close()
+    return msg
