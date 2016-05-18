@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 import logging
+import datetime
 from sqlalchemy.orm import sessionmaker
 from conf.settings import engine
 from dbcollections.account.models import User, UserGroup
@@ -72,12 +73,13 @@ def get_one_object(obj_name,obj_id):
 
 
 def save_user(session, param):
+    now = datetime.datetime.now()
     try:
         group_ids = param['group_ids']
         group_list = [session.query(UserGroup).get(int(item)) for item in group_ids]
         user = User(username=param['username'], password=param['password'], email=param['email'],
                     is_active=param['is_active'], uuid=param['uuid'], role=param['role'], ssh_key_pwd=param['ssh_key_pwd'],
-                    group=group_list)
+                    group=group_list, date_joined=now)
         session.add(user)
         session.commit()
     except Exception as e:
@@ -86,9 +88,12 @@ def save_user(session, param):
 
 def save_usergroup(session, param):
     try:
-        group = UserGroup(param)
-        session.add(group)
-        session.commit()
+        group = UserGroup(name=param['name'], comment=param['comment'])
+        for user_id in param['selected_ids']:
+            user = session.query(User).get(user_id)
+            user.group.add(group)
+            session.add(user)
+            session.commit()
     except Exception as e:
         logger.error(e)
 
@@ -110,18 +115,16 @@ def save_object(obj_name, param):
         session.close()
     return msg
 
+
 def update_user(session, obj_id, param):
     try:
         group_ids = param['group_ids']
         group_list = [session.query(UserGroup).get(int(item)) for item in group_ids]
         user = session.query(User).get(int(obj_id))
-        user.username = param['username']
         user.password = param['password']
         user.email = param['email']
         user.is_active = param['is_active']
-        user.uuid = param['uuid']
         user.role = param['role']
-        user.ssh_key_pwd = param['ssh_key_pwd']
         user.group = group_list
         session.commit()
     except Exception as e:
@@ -130,7 +133,12 @@ def update_user(session, obj_id, param):
 
 def update_usergroup(session,obj_id, param):
     try:
-        session.query(UserGroup).filter_by(int(obj_id)).update(param)
+        group = session.query(UserGroup).get(int(obj_id)).update(name=param.get('name'), comment=param.get('comment'))
+        group.user.clean()
+        for user_id in param['selected_ids']:
+            user = session.query(User).get(int(user_id))
+            user.group.add(group)
+            session.commit()
         session.commit()
     except Exception as e:
         logger.error(e)
