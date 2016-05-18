@@ -231,7 +231,7 @@ def save_permrole(session, param):
             key_path = gen_keys()
         role.key_path = key_path
         sudo_ids = param['sudo_ids']
-        sudo_list = [session.query(PermSudo).get(id=int(item)) for item in sudo_ids]
+        sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
         role.sudo = sudo_list
         session.add(role)
         session.commit()
