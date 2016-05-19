@@ -1,7 +1,13 @@
 # -*- coding:utf-8 -*-
 import logging
+import crypt
+import pwd
+import hashlib
 import shutil
 import datetime
+import random
+from binascii import b2a_hex, a2b_hex
+from Crypto.Cipher import AES
 from sqlalchemy.orm import sessionmaker
 from conf.settings import engine, KEY_DIR
 from dbcollections.permission.models import *
@@ -10,6 +16,7 @@ from paramiko import SSHException
 from paramiko.rsakey import RSAKey
 from uuid import uuid4
 
+KEY = '941enj9neshd1wes'
 logger = logging.getLogger()
 
 
@@ -20,6 +27,85 @@ class ServerError(Exception):
     """
     pass
 
+
+class PyCrypt(object):
+    """
+    This class used to encrypt and decrypt password.
+    加密类
+    """
+
+    def __init__(self, key):
+        self.key = key
+        self.mode = AES.MODE_CBC
+
+    @staticmethod
+    def gen_rand_pass(length=16, especial=False):
+        """
+        random password
+        随机生成密码
+        """
+        salt_key = '1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
+        symbol = '!@$%^&*()_'
+        salt_list = []
+        if especial:
+            for i in range(length - 4):
+                salt_list.append(random.choice(salt_key))
+            for i in range(4):
+                salt_list.append(random.choice(symbol))
+        else:
+            for i in range(length):
+                salt_list.append(random.choice(salt_key))
+        salt = ''.join(salt_list)
+        return salt
+
+    @staticmethod
+    def md5_crypt(string):
+        """
+        md5 encrypt method
+        md5非对称加密方法
+        """
+        return hashlib.new("md5", string).hexdigest()
+
+    @staticmethod
+    def gen_sha512(salt, password):
+        """
+        generate sha512 format password
+        生成sha512加密密码
+        """
+        return crypt.crypt(password, '$6$%s$' % salt)
+
+    def encrypt(self, passwd=None, length=32):
+        """
+        encrypt gen password
+        对称加密之加密生成密码
+        """
+        if not passwd:
+            passwd = self.gen_rand_pass()
+
+        cryptor = AES.new(self.key, self.mode, b'8122ca7d906ad5e1')
+        try:
+            count = len(passwd)
+        except TypeError:
+            raise ServerError('Encrypt password error, TYpe error.')
+
+        add = (length - (count % length))
+        passwd += ('\0' * add)
+        cipher_text = cryptor.encrypt(passwd)
+        return b2a_hex(cipher_text)
+
+    def decrypt(self, text):
+        """
+        decrypt pass base the same key
+        对称加密之解密，同一个加密随机数
+        """
+        cryptor = AES.new(self.key, self.mode, b'8122ca7d906ad5e1')
+        try:
+            plain_text = cryptor.decrypt(a2b_hex(text))
+        except TypeError:
+            raise ServerError('Decrypt password error, TYpe error.')
+        return plain_text.rstrip('\0')
+
+CRYPTOR = PyCrypt(KEY)
 
 def chown(path, user, group=''):
     if not group:
@@ -111,15 +197,15 @@ def permrole_to_dict(role):
     """
     sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
                       commands=item.commands, comment=item.comment) for item in role.sudo]
-    push_list = []
-    for item in role.perm_push:
-        asset_list = {}
-        push_list.append(dict(id=item.id, asset=asset_list, success=item.success,
-               result=item.result, is_public_key=item.is_public_key,
-               is_password=item.is_password, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S')))
+    # push_list = []
+    # for item in role.perm_push:
+    #     asset_list = {}
+    #     push_list.append(dict(id=item.id, asset=asset_list, success=item.success,
+    #            result=item.result, is_public_key=item.is_public_key,
+    #            is_password=item.is_password, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S')))
     res = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
                date_added=role.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
-               comment=role.comment, sudo=sudo_list, perm_push=push_list)
+               comment=role.comment, sudo=sudo_list)
     return res
 
 
@@ -276,19 +362,21 @@ def update_permrole(session,obj_id, param):
         role = session.query(PermRole).filter_by(id=int(obj_id))
         key_content = param['key_content']
         # 生成随机密码，生成秘钥对
-        key_path = ''
         if key_content:
             try:
-                key_path = gen_keys(key=key_content, key_path_dir=role['key_path'])
+                key_path = gen_keys(key=key_content, key_path_dir=role.key_path)
             except SSHException:
                 raise ServerError('输入的密钥不合法')
-            logger.debug('Recreate role key: %s' % role['key_path'])
+            logger.info('Recreate role key: %s' % role.key_path)
         sudo_list = []
         for item in param['sudo_ids']:
             sudo_list.append(session.query(PermSudo).get(int(item)))
         role.name = param['name']
-        role.password = param['password']
-        role.key_path = key_path
+        if param['password']:
+            encrypt_pass = CRYPTOR.encrypt(param['password'])
+            role.password = param['password']
+        if key_content:
+            role.key_path = key_path
         role.sudo = sudo_list
         session.commit()
     except Exception as e:
@@ -327,7 +415,7 @@ def update_object(obj_name, obj_id, param):
 def delete_permrole(session, obj_id):
     try:
         role = session.query(PermRole).get(obj_id)
-        role_key = role['key_path']
+        role_key = role.key_path
         #删除存储的秘钥，以及目录
         try:
             key_files = os.listdir(role_key)
