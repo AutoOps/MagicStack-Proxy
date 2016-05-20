@@ -15,11 +15,11 @@ class Task(Base):
     __tablename__ = 'task'
 
     id = Column(Integer, primary_key=True)
-    task_name = Column(String(50))
-    username = Column(String(50))
-    status = Column(String(20))
-    url = Column(String(60))
-    content = Column(Text)
+    task_name = Column(String(200))
+    username = Column(String(100))
+    status = Column(String(100))
+    url = Column(String(200))
+    result = Column(Text)
     start_time = Column(DateTime)
 
     def __repr__(self):

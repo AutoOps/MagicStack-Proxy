@@ -359,7 +359,7 @@ def save_object(obj_name, param):
 
 def update_permrole(session,obj_id, param):
     try:
-        role = session.query(PermRole).filter_by(id=int(obj_id))
+        role = session.query(PermRole).get(int(obj_id))
         key_content = param['key_content']
         # 生成随机密码，生成秘钥对
         if key_content:
@@ -374,10 +374,12 @@ def update_permrole(session,obj_id, param):
         role.name = param['name']
         if param['password']:
             encrypt_pass = CRYPTOR.encrypt(param['password'])
-            role.password = param['password']
+            role.password = encrypt_pass
         if key_content:
             role.key_path = key_path
         role.sudo = sudo_list
+        role.comment = param['comment']
+        session.add(role)
         session.commit()
     except Exception as e:
         logger.error(e)

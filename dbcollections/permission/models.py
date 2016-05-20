@@ -23,9 +23,9 @@ class PermRole(Base):
     __tablename__ = 'perm_role'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(30))
-    password = Column(String(30))
-    key_path = Column(String(90))
+    name = Column(String(100))
+    password = Column(String(200))
+    key_path = Column(String(200))
     date_added = Column(DateTime)
     comment = Column(Text)
     sudo = relationship("PermSudo",
@@ -70,62 +70,16 @@ permrule_user_group = Table('permrule_user_group', Base.metadata,
 
 )
 
-permrule_role = Table('permrule_role', Base.metadata,
-    Column('permrule_id', Integer, ForeignKey('perm_rule.id')),
-    Column('permrole_id', Integer, ForeignKey('perm_role.id'))
-)
-
-
-class PermRule(Base):
-    __tablename__ = 'perm_rule'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(30))
-    comment = Column(String(200))
-    date_added = Column(DateTime)
-    asset = relationship('Asset',
-                         secondary=permrule_asset,
-                         backref='perm_rule')
-    asset_group = relationship('AssetGroup',
-                               secondary=permrule_asset_group,
-                               backref='perm_rule')
-    user = relationship('User',
-                        secondary=permrule_user,
-                        backref='perm_rule')
-    user_group = relationship('UserGroup',
-                              secondary=permrule_user_group,
-                              backref='perm_rule')
-    role = relationship('PermRole',
-                        secondary=permrule_role,
-                        backref='perm_rule')
-
-    def __repr__(self):
-        return self.name
-
-
-permpush_asset = Table('permpush_asset', Base.metadata,
-    Column('permpush_id', Integer, ForeignKey('perm_push.id')),
-    Column('asset_id', Integer, ForeignKey('asset.id'))
-)
-
-permpush_role = Table('permpush_role', Base.metadata,
-    Column('permpush_id', Integer, ForeignKey('perm_push.id')),
-    Column('permrole_id', Integer, ForeignKey('perm_role.id'))
-)
-
 
 class PermPush(Base):
     __tablename__ = 'perm_push'
 
     id = Column(Integer, primary_key=True)
-    asset = relationship('Asset',
-                         secondary=permpush_asset,
-                         backref='perm_push')
-    role_id = Column(Integer, ForeignKey('perm_role.id'))
-    role = relationship('PermRole')
+    assets = Column(Text)
+    role_name = Column(String(200))
     is_public_key = Column(Boolean)
     is_password = Column(Boolean)
-    success = Column(Boolean)
+    success_assets = Column(Text)
     result = Column(Text)
     date_added = Column(DateTime)
 

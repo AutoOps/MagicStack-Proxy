@@ -7,6 +7,8 @@ from ansible.playbook.play import Play
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.plugins.callback import CallbackBase
 import logging
+from dbcollections.task.models import Task
+from uuid import uuid4
 
 logger = logging.getLogger()
 
@@ -243,3 +245,6 @@ class ResultsCollector(CallbackBase):
 
     def v2_runner_on_failed(self, result,  *args, **kwargs):
         self.host_failed[result._host.get_name()] = result
+
+
+

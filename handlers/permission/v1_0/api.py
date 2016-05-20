@@ -11,9 +11,11 @@ from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from common.base import RequestHandler
+from sqlalchemy.orm import sessionmaker
 from utils.auth import auth
 from resource import get_perm_info, get_all_objects, get_one_object, save_object, update_object, delete_object
-
+from conf.settings import engine
+from dbcollections.task.models import Task
 logger = logging.getLogger()
 
 
@@ -146,6 +148,33 @@ class PermInfoHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
+class PushEventHandler(RequestHandler):
+    """
+        查询用户推送结果
+    """
+    @auth
+    def get(self, *agrs, **kwargs):
+        Session = sessionmaker()
+        Session.configure(bind=engine)
+        session = Session()
+        try:
+            tk_name = kwargs.get('task_name')
+            event = session.query(Task).filter_by(task_name=tk_name).first()
+            result = event.result
+            self.set_status(200, 'success')
+            self.finish({'messege': result})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
 
 
 

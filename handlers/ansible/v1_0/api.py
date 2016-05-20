@@ -5,7 +5,7 @@ import logging
 import re
 import traceback
 import threading
-
+import datetime
 try:
     import simplejson as json
 except ImportError:
@@ -14,15 +14,19 @@ except ImportError:
 from tornado.websocket import WebSocketHandler, WebSocketClosedError
 from tornado.web import RequestHandler, asynchronous, HTTPError
 from tornado.gen import coroutine
+from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
+from sqlalchemy.orm import sessionmaker
 from ansible_play import MyRunner, MyWSRunner
-
 from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
 from utils.auth import auth
 from utils.utils import get_dbsession, get_group_user_perm, gen_resource
 from dbcollections.logrecords.models import ExecLog
-from dbcollections.permission.models import PermRole
+from dbcollections.permission.models import PermRole,PermPush
+from dbcollections.task.models import Task
+from conf.settings import engine
+from uuid import uuid4
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -32,8 +36,55 @@ logger = logging.getLogger('ansible_module')
 ANSIBLE_PATHS = {'core': '/usr/lib/python2.7/site-packages/ansible/modules/core',
                  'extra': '/usr/lib/python2.7/site-packages/ansible/modules/extras'}
 
-global res_playbook
-res_playbook = None
+
+def task_record(task_name, result=None, action='save'):
+    # 记录,更新task
+    Session = sessionmaker()
+    Session.configure(bind=engine)
+    session = Session()
+    try:
+        if action == 'save':
+            ansi_task = Task()
+            ansi_task.task_name = task_name
+            ansi_task.start_time = datetime.datetime.now()
+            ansi_task.status = 'running'
+            session.add(ansi_task)
+            session.commit()
+        else:
+            ansi_task = session.query(Task).filter_by(task_name=task_name).first()
+            ansi_task.status = 'complete'
+            ansi_task.result = json.dumps(result)
+    except Exception as e:
+        logger.error(e)
+    finally:
+        session.close()
+
+
+def permpush_record(param, result=None, action='save'):
+    """
+    记录,更新permpush
+    """
+    Session = sessionmaker()
+    Session.configure(bind=engine)
+    session = Session()
+    try:
+        if action == 'save':
+            permpush = PermPush()
+            permpush.role_name = param['role_name']
+            permpush.date_added = datetime.datetime.now()
+            permpush.assets = str(param['hosts'])
+            session.add(permpush)
+            session.commit()
+        else:
+            permpush = session.query(PermPush).filter_by(role_name=param['role_name']).first()
+            permpush.result = json.dumps(result)
+            permpush.success_assets = str(result['success'].keys())
+            session.add(permpush)
+            session.commit()
+    except Exception as e:
+        logger.error(e)
+    finally:
+        session.close()
 
 
 class GenModulesHandler(RequestHandler):
@@ -58,19 +109,21 @@ class ExecPlayHandler(RequestHandler):
     """
        执行ansible命令 ad-hoc
     """
+    executor = ThreadPoolExecutor(2)
 
+    @asynchronous
+    @coroutine
     @auth
     def post(self, *args, **kwargs):
         try:
             param = json.loads(self.request.body)
-            mod_name = param.get('mod_name')
-            resource = param.get('resource')
-            host_list = param.get('hosts')
-            mod_args = param.get('mod_args')
-            my_runner = MyRunner(resource)
-            res_play = my_runner.run(host_list, mod_name, mod_args)
+            role_name = param.get('role_name')
+            tk_name = role_name+'-'+uuid4().hex
+            task_record(tk_name)
+            permpush_record(param)
+            self.set_backgroud_task(param,tk_name)
             self.set_status(200, 'success')
-            self.finish({'messege': res_play})
+            self.finish({'messege': 'running', 'task_name': tk_name})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
@@ -84,17 +137,19 @@ class ExecPlayHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
 
-
-class ExecPlayResultHandler(RequestHandler):
-    executor = ThreadPoolExecutor(2)
-
-    @asynchronous
-    @coroutine
-    def get(self, *args, **kwargs):
-        self.write({
-            'result': 'res_play',
-        })
-        self.finish()
+    @run_on_executor
+    def set_backgroud_task(self, param, task_name):
+        try:
+            mod_name = param.get('mod_name')
+            resource = param.get('resource')
+            host_list = param.get('hosts')
+            mod_args = param.get('mod_args')
+            my_runner = MyRunner(resource)
+            res_play = my_runner.run(host_list, mod_name, mod_args)
+            task_record(task_name, res_play, action='update')
+            permpush_record(param, res_play, action='update')
+        except Exception as e:
+            logger.error(e)
 
 
 class ExecPlayBookHandler(RequestHandler):
