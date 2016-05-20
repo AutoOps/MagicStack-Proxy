@@ -148,19 +148,23 @@ class PermInfoHandler(RequestHandler):
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
 
+
 class PushEventHandler(RequestHandler):
     """
         查询用户推送结果
     """
     @auth
-    def get(self, *agrs, **kwargs):
+    def Post(self, *agrs, **kwargs):
         Session = sessionmaker()
         Session.configure(bind=engine)
         session = Session()
         try:
-            tk_name = kwargs.get('task_name')
+            # tk_name = kwargs.get('task_name')
+            param = json.loads(self.request.body)
+            tk_name = param['task_name']
             event = session.query(Task).filter_by(task_name=tk_name).first()
             result = event.result
+            logger.info('result:%s'%result)
             self.set_status(200, 'success')
             self.finish({'messege': result})
         except ValueError:
@@ -175,7 +179,8 @@ class PushEventHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege':'failed'})
-
+        finally:
+            session.close()
 
 
 

@@ -54,6 +54,8 @@ def task_record(task_name, result=None, action='save'):
             ansi_task = session.query(Task).filter_by(task_name=task_name).first()
             ansi_task.status = 'complete'
             ansi_task.result = json.dumps(result)
+            session.add(ansi_task)
+            session.commit()
     except Exception as e:
         logger.error(e)
     finally:
@@ -118,7 +120,7 @@ class ExecPlayHandler(RequestHandler):
         try:
             param = json.loads(self.request.body)
             role_name = param.get('role_name')
-            tk_name = role_name+'-'+uuid4().hex
+            tk_name = role_name+'_'+uuid4().hex
             task_record(tk_name)
             permpush_record(param)
             self.set_backgroud_task(param,tk_name)

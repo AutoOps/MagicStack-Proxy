@@ -10,7 +10,6 @@ urls = [
     url(r'/ws/exec', ExecHandler),
     url(r'/module/all$', GenModulesHandler),
     url(r'/module$', ExecPlayHandler),
-    url(r'/modules/result$', ExecPlayResultHandler),
     url(r'/modules/file$', ExecPlayBookHandler),
     url(r'/modules/file/result$', ExecPBResultHandler),
 ]
