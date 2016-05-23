@@ -9,9 +9,6 @@ sys.path.append(path)
 from sqlalchemy import Table, Column, Integer, String, Text, DateTime,Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from conf.settings import engine, Base
-from dbcollections.account.models import User, UserGroup
-from dbcollections.asset.models import Asset, AssetGroup
-
 
 permrole_sudo = Table('permrole_sudo', Base.metadata,
     Column('permrole_id', Integer, ForeignKey('perm_role.id')),
@@ -47,28 +44,6 @@ class PermSudo(Base):
 
     def __repr__(self):
         return self.name
-
-
-permrule_asset = Table('permrule_asset', Base.metadata,
-    Column('permrule_id', Integer, ForeignKey('perm_rule.id')),
-    Column('asset_id', Integer, ForeignKey('asset.id'))
-)
-
-permrule_asset_group = Table('permrule_asset_group', Base.metadata,
-    Column('permrule_id', Integer, ForeignKey('perm_rule.id')),
-    Column('assetgroup_id', Integer, ForeignKey('asset_group.id'))
-)
-
-permrule_user = Table('permrule_user', Base.metadata,
-    Column('permrule_id', Integer, ForeignKey('perm_rule.id')),
-    Column('user_id', Integer, ForeignKey('user.id'))
-)
-
-permrule_user_group = Table('permrule_user_group', Base.metadata,
-    Column('permrule_id', Integer, ForeignKey('perm_rule.id')),
-    Column('usergroup_id', Integer, ForeignKey('user_group.id'))
-
-)
 
 
 class PermPush(Base):
