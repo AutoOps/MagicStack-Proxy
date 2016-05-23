@@ -11,7 +11,6 @@ from Crypto.Cipher import AES
 from sqlalchemy.orm import sessionmaker
 from conf.settings import engine, KEY_DIR
 from dbcollections.permission.models import *
-from dbcollections.asset.models import Asset, AssetGroup
 from paramiko import SSHException
 from paramiko.rsakey import RSAKey
 from uuid import uuid4
@@ -297,23 +296,23 @@ def get_one_object(name, obj_id):
 def save_permrole(session, param):
     now = datetime.datetime.now()
     try:
-        if not session.query('PermRole').filter_by(name=param['name']):
-            role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
-            logger.info('save_permrole:%s'%role)
-            key_content = param['key_content']
-            if key_content:
-                try:
-                    key_path = gen_keys(key=key_content)
-                except SSHException, e:
-                    raise ServerError(e)
-            else:
-                key_path = gen_keys()
-            role.key_path = key_path
-            sudo_ids = param['sudo_ids']
-            sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
-            role.sudo = sudo_list
-            session.add(role)
-            session.commit()
+        # if not session.query('PermRole').filter_by(name=param['name']):
+        role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
+        logger.info('save_permrole:%s'%role)
+        key_content = param['key_content']
+        if key_content:
+            try:
+                key_path = gen_keys(key=key_content)
+            except SSHException, e:
+                raise ServerError(e)
+        else:
+            key_path = gen_keys()
+        role.key_path = key_path
+        sudo_ids = param['sudo_ids']
+        sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
+        role.sudo = sudo_list
+        session.add(role)
+        session.commit()
     except Exception as e:
         logger.error(e)
 
