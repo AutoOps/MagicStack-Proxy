@@ -257,11 +257,6 @@ def get_all_objects(name):
             sudos = session.query(PermSudo).all()
             res = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d %H:%M:%S'), commands=item.commands,
                         comment=item.comment) for item in sudos]
-        elif name == 'PermRule':
-            rules = session.query(PermRule).all()
-            for rule in rules:
-                r = permrule_to_dict(rule)
-                res.append(r)
         elif name == 'PermPush':
             push_records = session.query(PermPush).all()
             for record in push_records:
@@ -289,9 +284,6 @@ def get_one_object(name, obj_id):
             sudo = session.query(PermSudo).get(int(obj_id))
             res = dict(id=sudo.id, name=sudo.name, date_added=sudo.date_added.strftime('%Y-%m-%d %H:%M:%S'), commands=sudo.commands,
                        comment=sudo.comment)
-        elif name == 'PermRule':
-            rule = session.query(PermRule).get(int(obj_id))
-            res = permrule_to_dict(rule)
         elif name == 'PermPush':
             record = session.query(PermPush).get(int(obj_id))
             res = permpush_to_dict(record)
@@ -305,22 +297,23 @@ def get_one_object(name, obj_id):
 def save_permrole(session, param):
     now = datetime.datetime.now()
     try:
-        role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
-        logger.info('save_permrole:%s'%role)
-        key_content = param['key_content']
-        if key_content:
-            try:
-                key_path = gen_keys(key=key_content)
-            except SSHException, e:
-                raise ServerError(e)
-        else:
-            key_path = gen_keys()
-        role.key_path = key_path
-        sudo_ids = param['sudo_ids']
-        sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
-        role.sudo = sudo_list
-        session.add(role)
-        session.commit()
+        if not session.query('PermRole').filter_by(name=param['name']):
+            role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
+            logger.info('save_permrole:%s'%role)
+            key_content = param['key_content']
+            if key_content:
+                try:
+                    key_path = gen_keys(key=key_content)
+                except SSHException, e:
+                    raise ServerError(e)
+            else:
+                key_path = gen_keys()
+            role.key_path = key_path
+            sudo_ids = param['sudo_ids']
+            sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
+            role.sudo = sudo_list
+            session.add(role)
+            session.commit()
     except Exception as e:
         logger.error(e)
 
@@ -328,10 +321,11 @@ def save_permrole(session, param):
 def save_permsudo(session, param):
     now = datetime.datetime.now()
     try:
-        sudo = PermSudo(**param)
-        sudo.date_added = now
-        session.add(sudo)
-        session.commit()
+        if not session.query(PermSudo).filter_by(name=param['name']):
+            sudo = PermSudo(**param)
+            sudo.date_added = now
+            session.add(sudo)
+            session.commit()
     except Exception as e:
         logger.error(e)
 
@@ -442,15 +436,6 @@ def delete_permsudo(session, obj_id):
           logger.error(e)
 
 
-def delete_permrule(session, obj_id):
-    try:
-        rule = session.query(PermRule).get(obj_id)
-        session.delete(rule)
-        session.commit()
-    except Exception as e:
-        logger.error(e)
-
-
 def delete_object(obj_name, obj_id):
     """
     删除数据
@@ -464,8 +449,6 @@ def delete_object(obj_name, obj_id):
             delete_permrole(session, obj_id)
         elif obj_name == "PermSudo":
             delete_permsudo(session, obj_id)
-        elif obj_name == "PermRule":
-            delete_permrule(session, obj_id)
     except Exception as e:
         logger.error(e)
         msg = 'error'
