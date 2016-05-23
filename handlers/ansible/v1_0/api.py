@@ -119,6 +119,15 @@ class ExecPlayHandler(RequestHandler):
     def post(self, *args, **kwargs):
         try:
             param = json.loads(self.request.body)
+            if 'action' in param:
+                mod_name = param.get('mod_name')
+                resource = param.get('resource')
+                host_list = param.get('hosts')
+                mod_args = param.get('mod_args')
+                my_runner = MyRunner(resource)
+                res_play = my_runner.run(host_list, mod_name, mod_args)
+                self.set_status(200, 'success')
+                self.finish({'messege': res_play})
             role_name = param.get('role_name')
             tk_name = role_name+'_'+uuid4().hex
             task_record(tk_name)
