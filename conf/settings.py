@@ -48,7 +48,7 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 KEY_DIR = os.path.join(BASE_DIR, 'keys')
 
 # log
-KEY = ""
+KEY = "941enj9neshd1wes"
 # SSH_KEY_DIR = os.path.join(BASE_DIR, 'keys/role_keys')
 # KEY = config.get('base', 'key')
 # URL = config.get('base', 'url')

@@ -22,8 +22,6 @@ from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
 from utils.auth import auth
 from utils.utils import get_dbsession, get_group_user_perm, gen_resource
-from dbcollections.logrecords.models import ExecLog
-from dbcollections.permission.models import PermRole,PermPush
 from dbcollections.task.models import Task
 from conf.settings import engine
 from uuid import uuid4

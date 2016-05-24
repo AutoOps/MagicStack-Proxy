@@ -16,9 +16,10 @@ import pyte
 import operator
 import fcntl, socket
 
-from common.websocket_api import ServerError, mkdir
-from common.websocket_api import logger
+from common.websocket_api import logger, ServerError, mkdir, CRYPTOR
 from conf.settings import LOG_DIR
+from dbcollections.logrecords.models import Log
+from utils.utils import get_dbsession
 
 try:
     remote_ip = os.environ.get('SSH_CLIENT').split()[0]
@@ -64,12 +65,15 @@ class Tty(object):
     A virtual tty class
     一个虚拟终端类，实现连接ssh和记录日志，基类
     """
-    def __init__(self, user, login_type='ssh'):
+
+    def __init__(self, user_id, node, role, login_type='ssh'):
         self.ip = None
         self.port = 22
         self.ssh = None
         self.channel = None
-        self.user = user
+        self.user_id = user_id
+        self.node = node
+        self.role = role
         self.remote_ip = ''
         self.login_type = login_type
         self.vim_flag = False
@@ -141,7 +145,7 @@ class Tty(object):
                 # 判断用户输入的是否是vim 或者fg命令
                 if self.vim_pattern.search(command):
                     self.vim_flag = True
-            # 虚拟屏幕清空
+                    # 虚拟屏幕清空
             self.screen.reset()
         except Exception:
             pass
@@ -157,21 +161,21 @@ class Tty(object):
         date_start = date_today.strftime('%Y%m%d')
         time_start = date_today.strftime('%H%M%S')
         today_connect_log_dir = os.path.join(tty_log_dir, date_start)
-        log_file_path = os.path.join(today_connect_log_dir, '%s_%s_%s' % ('test', 'xxx', time_start))
+        log_file_path = os.path.join(today_connect_log_dir, '%s_%s_%s' % (self.user_id, self.node.id, time_start))
 
         try:
             mkdir(os.path.dirname(today_connect_log_dir), mode=0777)
             mkdir(today_connect_log_dir, mode=0777)
         except OSError:
-            logger.debug('创建目录 %s 失败，请修改%s目录权限' % (today_connect_log_dir, tty_log_dir))
-            raise ServerError('创建目录 %s 失败，请修改%s目录权限' % (today_connect_log_dir, tty_log_dir))
+            logger.debug(u'创建目录 %s 失败，请修改%s目录权限' % (today_connect_log_dir, tty_log_dir))
+            raise ServerError(u'创建目录 %s 失败，请修改%s目录权限' % (today_connect_log_dir, tty_log_dir))
 
         try:
             log_file_f = open(log_file_path + '.log', 'a')
             log_time_f = open(log_file_path + '.time', 'a')
         except IOError:
-            logger.debug('创建tty日志文件失败, 请修改目录%s权限' % today_connect_log_dir)
-            raise ServerError('创建tty日志文件失败, 请修改目录%s权限' % today_connect_log_dir)
+            logger.debug(u'创建tty日志文件失败, 请修改目录%s权限' % today_connect_log_dir)
+            raise ServerError(u'创建tty日志文件失败, 请修改目录%s权限' % today_connect_log_dir)
 
         if self.login_type == 'ssh':  # 如果是ssh连接过来，记录connect.py的pid，web terminal记录为日志的id
             pid = os.getpid()
@@ -179,32 +183,37 @@ class Tty(object):
         else:
             pid = 0
 
-        # log = Log(user=self.username, host=self.asset_name, remote_ip=self.remote_ip, login_type=self.login_type,
-        #           log_path=log_file_path, start_time=date_today, pid=pid)
-        # log.save()
-        # if self.login_type == 'web':
-        #     log.pid = log.id  # 设置log id为websocket的id, 然后kill时干掉websocket
-        #     log.save()
+        log = Log(user_id=self.user_id, node_id=self.node.id, remote_ip=self.remote_ip, login_type=self.login_type,
+                  log_path=log_file_path, start_time=date_today, pid=pid)
+        log_id = None
+        se = get_dbsession()
+        if self.login_type == 'web':
+            log.pid = log.id  # 设置log id为websocket的id, 然后kill时干掉websocket
+        try:
+            se.begin()
+            se.add(log)
+            se.commit()
+            log_id = log.id
+        except:
+            se.rollback()
+        finally:
+            se.flush()
+            se.close()
 
         log_file_f.write('Start at %s\r\n' % datetime.datetime.now())
-        return log_file_f, log_time_f
+        return log_file_f, log_time_f, log_id
 
     def get_connect_info(self):
         """
         获取需要登陆的主机的信息和映射用户的账号密码
         """
-        # TODO  后续增加
-        # asset_info = get_asset_info(self.asset)
-        # role_key = get_role_key(self.user, self.role)  # 获取角色的key，因为ansible需要权限是600，所以统一生成用户_角色key
-        # role_pass = CRYPTOR.decrypt(self.role.password)
 
-        # connect_info = {'user': self.user, 'asset': self.asset, 'ip': asset_info.get('ip'),
-        #                 'port': int(asset_info.get('port')), 'role_name': self.role.name,
-        #                 'role_pass': role_pass, 'role_key': role_key}
+        role_key = self.role.password  # 获取角色的key，因为ansible需要权限是600，所以统一生成用户_角色key
+        role_pass = CRYPTOR.decrypt(self.role.password)
 
-        connect_info = {'ip': '123.57.209.233',
-                        'port': 22, 'role_name': 'myweb',
-                        'role_pass': 'myweb'}
+        connect_info = {'user': self.user_id, 'ip': self.node.ip,
+                        'port': int(self.node.port), 'name': self.role.name,
+                        'pass': role_pass, 'key': role_key}
         logger.debug(connect_info)
         return connect_info
 
@@ -216,28 +225,26 @@ class Tty(object):
 
         # 发起ssh连接请求 Make a ssh connection
         ssh = paramiko.SSHClient()
-        # ssh.load_system_host_keys()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            # TODO 后续考虑增加角色
-            # role_key = connect_info.get('role_key')
-            # if role_key and os.path.isfile(role_key):
-            #     try:
-            #         ssh.connect(connect_info.get('ip'),
-            #                     port=connect_info.get('port'),
-            #                     username=connect_info.get('role_name'),
-            #                     password=connect_info.get('role_pass'),
-            #                     key_filename=role_key,
-            #                     look_for_keys=False)
-            #         return ssh
-            #     except (paramiko.ssh_exception.AuthenticationException, paramiko.ssh_exception.SSHException):
-            #         logger.warning(u'使用ssh key %s 失败, 尝试只使用密码' % role_key)
-            #         pass
+            role_key = connect_info.get('key')
+            if role_key and os.path.isfile(role_key):
+                try:
+                    ssh.connect(connect_info.get('ip'),
+                                port=connect_info.get('port'),
+                                username=connect_info.get('name'),
+                                password=connect_info.get('pass'),
+                                key_filename=role_key,
+                                look_for_keys=False)
+                    return ssh
+                except (paramiko.ssh_exception.AuthenticationException, paramiko.ssh_exception.SSHException):
+                    logger.warning(u'使用ssh key %s 失败, 尝试只使用密码' % role_key)
+                    pass
 
             ssh.connect(connect_info.get('ip'),
                         port=connect_info.get('port'),
-                        username=connect_info.get('role_name'),
-                        password=connect_info.get('role_pass'),
+                        username=connect_info.get('name'),
+                        password=connect_info.get('pass'),
                         allow_agent=False,
                         look_for_keys=False)
 
@@ -248,6 +255,7 @@ class Tty(object):
         else:
             self.ssh = ssh
             return ssh
+
 
 if __name__ == '__main__':
     pass

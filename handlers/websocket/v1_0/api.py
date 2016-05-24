@@ -14,6 +14,9 @@ import select
 import sys
 import traceback
 import os
+import uuid
+import zipfile
+import pyte
 
 try:
     import simplejson as json
@@ -23,12 +26,13 @@ except ImportError:
 from tornado.websocket import WebSocketHandler
 from tornado.web import HTTPError
 
-from dbcollections.logrecords.models import TermLog
-from dbcollections.asset.models import Asset
-from dbcollections.account.models import User
+from dbcollections.nodes.models import Node
+from dbcollections.permission.models import PermRole
+from dbcollections.logrecords.models import TermLog, Log, TtyLog
 from common.base import RequestHandler
 from utils.auth import auth
-from utils.utils import get_dbsession, user_have_perm
+from utils.utils import get_dbsession
+from conf.settings import LOG_DIR
 from util import renderJSON, WebTty, MyThread
 
 
@@ -55,39 +59,25 @@ class WebTerminalHandler(WebSocketHandler):
     def check_origin(self, origin):
         return True
 
-    #@auth
+    # @auth
     def open(self):
         logger.debug('Websocket: Open request')
-        role_name = self.get_argument('role', 'sb')
-        asset_id = self.get_argument('id', 9999)
+        role_id = self.get_argument('role_id', -1)
+        node_id = self.get_argument('id', -1)
         user_id = self.get_argument('user_id', -1)
-        asset = self.se.query(Asset).filter_by(id=asset_id)
-        self.user = self.se.query(User).filter_by(id=user_id)
-        self.termlog = self.se.query(TermLog).filter(user=self.user)
-        if asset:
-            roles = user_have_perm(self.user, asset)
-            logger.debug(roles)
-            login_role = ''
-            for role in roles:
-                if role.name == role_name:
-                    login_role = role
-                    break
-            if not login_role:
-                logger.warning('Websocket: Not that Role %s for Host: %s User: %s ' % (role_name, asset.hostname,
-                                                                                       self.user.username))
-                self.close()
-                return
-        else:
-            logger.warning('Websocket: No that Host: %s User: %s ' % (asset_id, self.user.username))
-            self.close()
-            return
-        logger.debug('Websocket: request web terminal Host: %s User: %s Role: %s' % (asset.hostname, self.user.username,
-                                                                                     login_role.name))
-        self.term = WebTty(self.user, login_type='web')
+
+        node = self.se.query(Node).filter_by(id=node_id).first()
+        if not node:
+            raise RuntimeError("Node {0} is no exists".format(node_id))
+        role = self.se.query(PermRole).filter_by(id=role_id).first()
+        if not role:
+            raise RuntimeError("Role {0} is no exists".format(role_id))
+        self.termlog = TermLogRecorder(user=user_id)
+        self.term = WebTty(user_id, node, role, login_type='web')
         self.term.remote_ip = self.request.headers.get("X-Real-IP")
         if not self.term.remote_ip:
             self.term.remote_ip = self.request.remote_ip
-        # ssh方式连接登录
+            # ssh方式连接登录
         self.ssh = self.term.get_connection()
         self.channel = self.ssh.invoke_shell(term='xterm')
         # 1.Websocket客户端列表
@@ -123,6 +113,7 @@ class WebTerminalHandler(WebSocketHandler):
                 jsondata.get('data').get('resize').get('rows', 24)
             )
         elif jsondata.get('data'):
+            self.termlog.recoder = True
             self.term.input_mode = True
             if str(jsondata['data']) in ['\r', '\n', '\r\n']:
                 if self.term.vim_flag:
@@ -135,8 +126,12 @@ class WebTerminalHandler(WebSocketHandler):
                             self.term.vim_end_flag = True
                 else:
                     result = self.term.deal_command(self.term.data)[0:200]
-                    # if len(result) > 0:
-                    #     TtyLog(log=self.log, datetime=datetime.datetime.now(), cmd=result).save()
+                    if len(result) > 0:
+                        tlog = TtyLog(log_id=self.log, cmd=result)
+                        self.se.begin()
+                        self.se.add(tlog)
+                        self.se.commit()
+                        self.se.flush()
                 self.term.vim_data = ''
                 self.term.data = ''
                 self.term.input_mode = False
@@ -149,24 +144,34 @@ class WebTerminalHandler(WebSocketHandler):
         logger.debug('Websocket: Close request')
         if self in WebTerminalHandler.clients:
             WebTerminalHandler.clients.remove(self)
-            # 在任务列表中删除子进程     todo，目前暂时未找到杀死子进程的方法，先将其从列表中移除
+            # 在任务列表中删除子进程
             for t in self.threads:
                 if t in WebTerminalHandler.tasks:
                     WebTerminalHandler.tasks.remove(t)
         try:
             self.log_file_f.write('End time is %s' % datetime.datetime.now())
-            # self.log.is_finished = True
-            # self.log.end_time = datetime.datetime.now()
-            # self.log.save()
+            # 保存termlog
+            self.termlog.save()
+
+            # 保存日志
+            log = Log(id=self.log, is_finished=True, end_time=datetime.datetime.now(), filename=self.termlog.filename)
+            self.se.begin()
+            self.se.merge(log)
+            self.se.commit()
+            self.se.flush()
             self.log_file_f.close()
             self.log_time_f.close()
             self.ssh.close()
             self.close()
         except AttributeError:
             pass
+        except Exception, e:
+            print e
 
     def forward_outbound(self):
-        self.log_file_f, self.log_time_f = self.term.get_log()
+        # 获取时间日志句柄，内容日志句柄用于后续日志回放，获取实际Log ID
+        self.log_file_f, self.log_time_f, self.log = self.term.get_log()
+        self.termlog.setid(self.log)
         try:
             data = ''
             pre_timestamp = time.time()
@@ -181,7 +186,11 @@ class WebTerminalHandler(WebSocketHandler):
                     if self.term.vim_flag:
                         self.term.vim_data += recv
                     try:
+                        # 通过websocket返回浏览器结果
                         self.write_message(data.decode('utf-8', 'replace'))
+                        # 记录termlog
+                        self.termlog.write(data)
+                        self.termlog.recoder = False
                         now_timestamp = time.time()
                         self.log_time_f.write('%s %s\n' % (round(now_timestamp - pre_timestamp, 4), len(data)))
                         self.log_file_f.write(data)
@@ -197,7 +206,7 @@ class WebTerminalHandler(WebSocketHandler):
             pass
 
 
-class  LogInfoHandler(RequestHandler):
+class LogInfoHandler(RequestHandler):
     def get(self, *args, **kwargs):
         try:
             # 1获取ID
@@ -209,7 +218,7 @@ class  LogInfoHandler(RequestHandler):
             if os.path.isfile(scriptf) and os.path.isfile(timef):
                 content = renderJSON(scriptf, timef)
                 self.set_status(200)
-                self.finish({'content':content})
+                self.finish({'content': content})
             else:
                 raise HTTPError(404)
         except ValueError:
@@ -224,3 +233,103 @@ class  LogInfoHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
+
+
+class TermLogRecorder(object):
+    """
+    TermLogRecorder
+    """
+    loglist = dict()
+
+    def __init__(self, user=None, uid=None):
+        self.log = {}
+        self.id = 0
+        self.user = user
+        self.recoderStartTime = time.time()
+        self.__init_screen_stream()
+        self.recoder = False
+        self.commands = []
+        self._lists = None
+        self.file = None
+        self.filename = None
+        self._data = None
+        self.vim_pattern = re.compile(r'\W?vi[m]?\s.* | \W?fg\s.*', re.X)
+        self._in_vim = False
+        self.CMD = {}
+
+    def __init_screen_stream(self):
+        """
+        Initializing the virtual screen and the character stream
+        """
+        self._stream = pyte.ByteStream()
+        self._screen = pyte.Screen(80, 24)
+        self._stream.attach(self._screen)
+
+    def _command(self):
+        for i in self._screen.display:
+            if i.strip().__len__() > 0:
+                self.commands.append(i.strip())
+                if not i.strip() == '':
+                    self.CMD[str(time.time())] = self.commands[-1]
+        self._screen.reset()
+
+    def setid(self, id):
+        self.id = id
+        TermLogRecorder.loglist[str(id)] = [self]
+
+    def write(self, msg):
+        if self.recoder and (not self._in_vim):
+            if self.commands.__len__() == 0:
+                self._stream.feed(msg)
+            elif not self.vim_pattern.search(self.commands[-1]):
+                self._stream.feed(msg)
+            else:
+                self._in_vim = True
+                self._command()
+        else:
+            if self._in_vim:
+                if re.compile(r'\[\?1049', re.X).search(msg.decode('utf-8', 'replace')):
+                    self._in_vim = False
+                    self.commands.append('')
+                self._screen.reset()
+            else:
+                self._command()
+        self.log[str(time.time() - self.recoderStartTime)] = msg.decode('utf-8', 'replace')
+
+    def save(self, path=LOG_DIR):
+        date = datetime.datetime.now().strftime('%Y%m%d')
+        filename = str(uuid.uuid4())
+        self.filename = filename
+        filepath = os.path.join(path, 'tty', date, filename + '.zip')
+        if not os.path.isdir(os.path.join(path, 'tty', date)):
+            os.makedirs(os.path.join(path, 'tty', date), mode=0777)
+        while os.path.isfile(filepath):
+            filename = str(uuid.uuid4())
+            filepath = os.path.join(path, 'tty', date, filename + '.zip')
+        password = str(uuid.uuid4())
+        try:
+            se = get_dbsession()
+            se.begin()
+            try:
+                zf = zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED)
+                zf.setpassword(password)
+                zf.writestr(filename, json.dumps(self.log))
+                zf.close()
+                record = TermLog(logpath=filepath, logpwd=password, filename=filename,
+                                 history=json.dumps(self.CMD), timestamp=int(self.recoderStartTime), user_id=self.user)
+            except:
+                record = TermLog(logpath='locale', logpwd=password, log=json.dumps(self.log),
+                                 filename=filename, history=json.dumps(self.CMD),
+                                 timestamp=int(self.recoderStartTime), user_id=self.user)
+            se.add(record)
+            se.commit()
+            se.flush()
+        except Exception, e:
+            se.rollback()
+        finally:
+            se.close()
+
+        try:
+            del TermLogRecorder.loglist[str(self.id)]
+        except KeyError:
+            pass

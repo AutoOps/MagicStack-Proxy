@@ -170,5 +170,5 @@ def get_mac_address():
     return mac
 
 
-#CRYPTOR = PyCrypt(KEY)
+CRYPTOR = PyCrypt(KEY)
 logger = set_log('debug')

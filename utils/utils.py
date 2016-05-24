@@ -17,8 +17,6 @@ from conf.settings import USERS, engine, KEY
 
 from dbcollections.permission.models import *
 from dbcollections.asset.models import *
-from dbcollections.account.models import *
-from dbcollections.logrecords.models import *
 
 
 class PyCrypt(object):
