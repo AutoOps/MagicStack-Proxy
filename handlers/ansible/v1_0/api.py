@@ -21,7 +21,7 @@ from ansible_play import MyRunner, MyWSRunner
 from all_modules import gen_classify_modules
 from ansible_play_book import exec_playbook
 from utils.auth import auth
-from utils.utils import get_dbsession, get_group_user_perm, gen_resource
+from utils.utils import get_dbsession
 from dbcollections.task.models import Task
 from conf.settings import engine
 from uuid import uuid4

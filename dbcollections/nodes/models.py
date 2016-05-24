@@ -32,7 +32,7 @@ from conf.settings import engine, Base
 class Node(Base):
     __tablename__ = 'node'
 
-    id = Column(Integer, primary_key=True, doc=u'ID，由业务系统上送')
+    id = Column(String(200), primary_key=True, doc=u'ID，由业务系统上送')
     ip = Column(String(32), doc=u'节点管理地址')
     port = Column(Integer, doc=u'节点ssh管理端口', default=22)
 
