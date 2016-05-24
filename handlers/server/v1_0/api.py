@@ -10,6 +10,7 @@ import logging
 import traceback
 import os
 import uuid
+
 try:
     import simplejson as json
 except ImportError:
@@ -22,10 +23,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 from common.base import RequestHandler
 from common.cobbler_api import System, Distros, Event, Profile
+from utils.utils import get_dbsession
 from utils.auth import auth
 from conf.settings import UPLOAD_PATH
+from dbcollections.nodes.models import Node
 
 logger = logging.getLogger()
+
 
 class SystemActionHandler(RequestHandler):
     """
@@ -49,36 +53,37 @@ class SystemActionHandler(RequestHandler):
                     self.write_error(403)
                     return
                 params = {
-                    'power' :  power.lower(),
-                    'systems' : systems ,
+                    'power': power.lower(),
+                    'systems': systems,
                 }
                 task_name = system.power(params)
                 self.set_status(200, 'success')
-                self.finish({'messege':'running', 'task_name':task_name})
+                self.finish({'messege': 'running', 'task_name': task_name})
             elif rebuild:
                 profile = params.get('profile')
                 rebuild_params = {
-                    'systems':systems,
-                    'netboot_enabled':True,
+                    'systems': systems,
+                    'netboot_enabled': True,
                 }
                 if profile: # Todo check exists
                     rebuild_params['profile'] = profile
                 task_name = system.rebuild(rebuild_params)
                 self.set_status(200, 'success')
-                self.finish({'messege':'running', 'task_name':task_name})
+                self.finish({'messege': 'running', 'task_name': task_name})
 
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
+
 
 class SystemHandler(RequestHandler):
     """
@@ -100,12 +105,12 @@ class SystemHandler(RequestHandler):
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
 
 
     @auth
@@ -113,24 +118,46 @@ class SystemHandler(RequestHandler):
         """
             创建服务器
         """
+        se = None
         try:
             params = json.loads(self.request.body)
+            # 本地数据记录，用户ssh登录
+            se = get_dbsession()
+            se.begin()
+            id_unique = params.pop("id_unique")
+            interfaces = params.get("interfaces")
+            # 暂时不考虑多网卡，故只取一个IP
+            for k, params in interfaces.items():
+                ip = params.get('ip_address')
+            if not id_unique or not ip:
+                raise ValueError("id_unique and ip must ma")
+            node = Node(id=id_unique, ip=ip)
+            se.add(node)
+            # 创建节点
             system = System()
             system.create(params)
+            se.commit()
             self.set_status(200, 'success')
-            self.finish({'messege':'created'})
+            self.finish({'messege': 'created'})
         except ValueError:
+            se.rollback()
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
+            se.rollback()
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
+            se.rollback()
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
+        finally:
+            if se:
+                se.flush
+                se.close()
 
     @auth
     def put(self, *args, **kwargs):
@@ -143,19 +170,19 @@ class SystemHandler(RequestHandler):
             system = System()
             system.modify(system_id, params)
             self.set_status(200, 'success')
-            self.finish({'messege':'success'})
+            self.finish({'messege': 'success'})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
 
     #@auth
     def delete(self, *args, **kwargs):
@@ -169,24 +196,24 @@ class SystemHandler(RequestHandler):
             error_info = system.delete(system_names)
             self.set_status(200)
             if error_info:
-                self.finish({'messege':error_info})
+                self.finish({'messege': error_info})
             else:
-                self.finish({'messege':'success'})
+                self.finish({'messege': 'success'})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
+
 
 class DistrosHandler(RequestHandler):
-
     executor = ThreadPoolExecutor(2)
 
     def _check(self, params, target):
@@ -216,12 +243,12 @@ class DistrosHandler(RequestHandler):
             if not os.path.exists(osname):
                 raise HTTPError(404, 'File {0} is not exist'.format(osname))
             params['filename'] = name
-            params['name'] = '{0}-{1}'.format(str(uuid.uuid1()),params['arch'])
-            task_name, mnt_sub= distros.upload(params)
+            params['name'] = '{0}-{1}'.format(str(uuid.uuid1()), params['arch'])
+            task_name, mnt_sub = distros.upload(params)
             result = {
-                'message':"importing...",
-                'distros':{
-                    'name':'{0}'.format(params['name']),
+                'message': "importing...",
+                'distros': {
+                    'name': '{0}'.format(params['name']),
                     'task_name': task_name
                 }
             }
@@ -231,16 +258,16 @@ class DistrosHandler(RequestHandler):
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
 
     @auth
     def delete(self, *args, **kwargs):
@@ -262,12 +289,11 @@ class DistrosHandler(RequestHandler):
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
-            # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
 
     @auth
     def put(self, *args, **kwargs):
@@ -283,27 +309,27 @@ class DistrosHandler(RequestHandler):
         except:
             logger.error(traceback.format_exc())
 
-class EventSingalHandler(RequestHandler):
 
+class EventSingalHandler(RequestHandler):
     @auth
     def get(self, event_id, *args, **kwargs):
         try:
-           event = Event()
-           info = event.get_event(event_id)
-           self.set_status(200, 'ok')
-           self.finish(info)
+            event = Event()
+            info = event.get_event(event_id)
+            self.set_status(200, 'ok')
+            self.finish(info)
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
+
 
 class ProfileHandler(RequestHandler):
-
     @auth
     def get(self, *args, **kwargs):
         try:
@@ -314,47 +340,45 @@ class ProfileHandler(RequestHandler):
                 self.finish()
             else:
                 self.set_status(200, 'ok')
-                self.finish({'profiles':item_names})
+                self.finish({'profiles': item_names})
 
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
-
+            self.finish({'messege': 'failed'})
 
 
 class FileHandler(RequestHandler):
-
     @auth
     def post(self, *args, **kwargs):
         try:
-            file_metas=self.request.files['file'] # 提取表单中name为file的文件元数据
+            file_metas = self.request.files['file'] # 提取表单中name为file的文件元数据
             for meta in file_metas:
-                filename=meta['filename'].split(os.path.sep)[-1]
-                filepath=os.path.join(UPLOAD_PATH,filename)
+                filename = meta['filename'].split(os.path.sep)[-1]
+                filepath = os.path.join(UPLOAD_PATH, filename)
                 print filepath
-                with open(filepath,'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
+                with open(filepath, 'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
                     up.write(meta['body'])
                 self.set_status(200, 'ok')
                 self.finish()
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
-            self.finish({'messege':'value error'})
+            self.finish({'messege': 'value error'})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)
-            self.finish({'messege':http_error.log_message})
+            self.finish({'messege': http_error.log_message})
         except:
             # todo 定制异常
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
-            self.finish({'messege':'failed'})
+            self.finish({'messege': 'failed'})
 
 
 

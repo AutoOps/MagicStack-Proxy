@@ -204,7 +204,7 @@ class System(Cobbler):
         # build power params
         power_data = {
             'power':'reboot',
-            'systems':systems # todo 考虑批量操作
+            'systems':systems
         }
         logger.info('rebuild power reboot')
         result = self.power(power_data)
