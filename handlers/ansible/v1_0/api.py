@@ -127,13 +127,14 @@ class ExecPlayHandler(RequestHandler):
                 res_play = my_runner.run(host_list, mod_name, mod_args)
                 self.set_status(200, 'success')
                 self.finish({'messege': res_play})
-            role_name = param.get('role_name')
-            tk_name = role_name+'_'+uuid4().hex
-            task_record(tk_name)
-            permpush_record(param)
-            self.set_backgroud_task(param,tk_name)
-            self.set_status(200, 'success')
-            self.finish({'messege': 'running', 'task_name': tk_name})
+            else:
+                role_name = param.get('role_name')
+                tk_name = role_name+'_'+uuid4().hex
+                task_record(tk_name)
+                permpush_record(param)
+                self.set_backgroud_task(param,tk_name)
+                self.set_status(200, 'success')
+                self.finish({'messege': 'running', 'task_name': tk_name})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
