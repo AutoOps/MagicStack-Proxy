@@ -227,7 +227,7 @@ class Tty(object):
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            role_key = connect_info.get('key')
+            role_key = os.sep.join((connect_info.get('key'), 'id_rsa.pub'))
             if role_key and os.path.isfile(role_key):
                 try:
                     ssh.connect(connect_info.get('ip'),
