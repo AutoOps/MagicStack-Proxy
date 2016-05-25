@@ -211,16 +211,24 @@ class LogInfoHandler(RequestHandler):
         try:
             # 1获取ID
             log_id = kwargs.get('log_id')
-            # 2数据库获取信息     todo
-            # 3读取文件，返回信息
-            timef = "/home/flask/projects/jumpserver/jumpserver/logs/tty/20160511/test_123.57.209.233_135417.time"
-            scriptf = "/home/flask/projects/jumpserver/jumpserver/logs/tty/20160511/test_123.57.209.233_135417.log"
-            if os.path.isfile(scriptf) and os.path.isfile(timef):
-                content = renderJSON(scriptf, timef)
-                self.set_status(200)
-                self.finish({'content': content})
+            # 2数据库获取信息
+            if log_id:
+                se = get_dbsession()
+                log = se.query(Log).filter_by(id=log_id).first()
+                if not log:
+                    raise HTTPError(404)
+                # 3根据获取数据，整理日志内容
+                scriptf = log.log_path + '.log'
+                timef = log.log_path + '.time'
+
+                if os.path.isfile(scriptf) and os.path.isfile(timef):
+                    content = renderJSON(scriptf, timef)
+                    self.set_status(200)
+                    self.finish({'content': content})
+                else:
+                    raise HTTPError(404)
             else:
-                raise HTTPError(404)
+                raise HTTPError(400)
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')

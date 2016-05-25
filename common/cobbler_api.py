@@ -197,10 +197,8 @@ class System(Cobbler):
         logger.info("rebuild set param")
         systems = params.pop('systems')
         import datetime
-        print datetime.datetime.now()
         for system_name in systems:
             self.modify(system_name,params)
-        print datetime.datetime.now()
         # build power params
         power_data = {
             'power':'reboot',
@@ -208,13 +206,12 @@ class System(Cobbler):
         }
         logger.info('rebuild power reboot')
         result = self.power(power_data)
-        print datetime.datetime.now()
         return result
 
     def create(self, params):
         remote = self.get_remote()
         token = self.get_token()
-        logger.debug('create system params:{0}'.format(params))
+        logger.info('create system params:{0}'.format(params))
         # 1.检查参数
         self.check_fileds(params)
         # 2.新建system

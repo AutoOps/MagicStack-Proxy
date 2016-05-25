@@ -127,10 +127,10 @@ class SystemHandler(RequestHandler):
             id_unique = params.pop("id_unique")
             interfaces = params.get("interfaces")
             # 暂时不考虑多网卡，故只取一个IP
-            for k, params in interfaces.items():
-                ip = params.get('ip_address')
+            for k, inter_params in interfaces.items():
+                ip = inter_params.get('ip_address')
             if not id_unique or not ip:
-                raise ValueError("id_unique and ip must ma")
+                raise ValueError("id_unique and ip is mandatory ")
             node = Node(id=id_unique, ip=ip)
             se.add(node)
             # 创建节点
