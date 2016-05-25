@@ -208,7 +208,7 @@ class Tty(object):
         获取需要登陆的主机的信息和映射用户的账号密码
         """
 
-        role_key = self.role.password  # 获取角色的key，因为ansible需要权限是600，所以统一生成用户_角色key
+        role_key = self.role.key_path  # 获取角色的key，因为ansible需要权限是600，所以统一生成用户_角色key
         role_pass = CRYPTOR.decrypt(self.role.password)
 
         connect_info = {'user': self.user_id, 'ip': self.node.ip,
@@ -227,7 +227,7 @@ class Tty(object):
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            role_key = os.sep.join((connect_info.get('key'), 'id_rsa.pub'))
+            role_key = os.sep.join((connect_info.get('key'), 'id_rsa'))
             if role_key and os.path.isfile(role_key):
                 try:
                     ssh.connect(connect_info.get('ip'),
