@@ -125,8 +125,9 @@ class SystemHandler(RequestHandler):
             se = get_dbsession()
             se.begin()
             id_unique = params.pop("id_unique")
-            interfaces = params.get("interfaces")
+            interfaces = params.get("interfaces", {})
             # 暂时不考虑多网卡，故只取一个IP
+            ip = None
             for k, inter_params in interfaces.items():
                 ip = inter_params.get('ip_address')
             if not id_unique or not ip:
@@ -167,10 +168,11 @@ class SystemHandler(RequestHandler):
         try:
             system_id = kwargs.get('system_id')
             params = json.loads(self.request.body)
+            interfaces = params.get("interfaces", {})
             system = System()
             system.modify(system_id, params)
-            interfaces = params.get("interfaces")
             id_unique = params.pop("id_unique")
+            ip = None
             # 暂时不考虑多网卡，故只取一个IP
             for k, inter_params in interfaces.items():
                 ip = inter_params.get('ip_address')
@@ -178,6 +180,7 @@ class SystemHandler(RequestHandler):
             # 修改数据库中参数
             update_db = True
             if ip:
+                se = None
                 try:
                     se = get_dbsession()
                     se.begin()
