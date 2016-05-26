@@ -79,7 +79,6 @@ EXAMPLES = '''
 # Example group command from Ansible
 # backup file
 ansible all -m backup -a "login_host=172.16.50.81 login_user=ftp_test login_password=ftp_test src=/home/ansible/t.txt dest=./b.tar.bz2"
-ansible all -m backup -a "login_host=172.16.50.81 login_user=ftp_test login_password=ftp_test src=/home/ansible/t.txt dest=./b.tar.bz2"
 # backup database
 ansible all -m backup -a "backup_type=database login_host=172.16.50.81 login_user=ftp_test login_password=ftp_test src=/home/ansible/all.sql dest=./all.sql.tar.bz2 db_login_user=root db_login_password=password"
 '''

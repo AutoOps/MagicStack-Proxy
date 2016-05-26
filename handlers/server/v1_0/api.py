@@ -156,7 +156,7 @@ class SystemHandler(RequestHandler):
             self.finish({'messege': 'failed'})
         finally:
             if se:
-                se.flush
+                se.flush()
                 se.close()
 
     @auth
@@ -169,8 +169,30 @@ class SystemHandler(RequestHandler):
             params = json.loads(self.request.body)
             system = System()
             system.modify(system_id, params)
+            interfaces = params.get("interfaces")
+            id_unique = params.pop("id_unique")
+            # 暂时不考虑多网卡，故只取一个IP
+            for k, inter_params in interfaces.items():
+                ip = inter_params.get('ip_address')
+
+            # 修改数据库中参数
+            update_db = True
+            if ip:
+                try:
+                    se = get_dbsession()
+                    se.begin()
+                    node = Node(id=id_unique, ip=ip)
+                    se.merge(node)
+                    se.commit()
+                except:
+                    update_db = False
+                    se.rollback()
+                finally:
+                    se.flush()
+                    se.close()
+
             self.set_status(200, 'success')
-            self.finish({'messege': 'success'})
+            self.finish({'messege': 'success', 'update_db': update_db})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
@@ -189,16 +211,32 @@ class SystemHandler(RequestHandler):
         """
             删除服务器
         """
+        se = None
         try:
             params = json.loads(self.request.body)
             system = System()
             system_names = params.get('names', None)
+            id_unique = params.pop("id_unique")
             error_info = system.delete(system_names)
             self.set_status(200)
             if error_info:
                 self.finish({'messege': error_info})
             else:
-                self.finish({'messege': 'success'})
+                delete_db = True
+                try:
+                    se = get_dbsession()
+                    se.begin()
+                    node = Node(id=id_unique)
+                    se.delete(node)
+                    se.commit()
+                except:
+                    se.rollback()
+                    delete_db = False
+                finally:
+                    se.flush()
+                    se.close()
+                self.finish({'messege': 'success', 'delete_db': delete_db})
+
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
