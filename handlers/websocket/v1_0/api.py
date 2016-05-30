@@ -206,7 +206,8 @@ class WebTerminalHandler(WebSocketHandler):
             pass
 
 
-class LogInfoHandler(RequestHandler):
+class ReplayHandler(RequestHandler):
+    #@auth
     def get(self, *args, **kwargs):
         try:
             # 1获取ID
@@ -217,7 +218,7 @@ class LogInfoHandler(RequestHandler):
                 log = se.query(Log).filter_by(id=log_id).first()
                 if not log:
                     raise HTTPError(404)
-                # 3根据获取数据，整理日志内容
+                    # 3根据获取数据，整理日志内容
                 scriptf = log.log_path + '.log'
                 timef = log.log_path + '.time'
 
@@ -241,6 +242,42 @@ class LogInfoHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
+
+
+class LoginfoHandler(RequestHandler):
+    #@auth
+    def get(self, *args, **kwargs):
+        try:
+            se = get_dbsession()
+            count = self.get_argument('count', False)
+            if count:
+                cnt = se.query(Log).count()
+                self.set_status(200)
+                self.finish({'message':'success', 'count': cnt})
+                return
+
+            # 查询日志信息，分页
+            pageno = int(self.get_argument('pageno', 1))
+            pagesize = int(self.get_argument('pagesize', 10))
+            # 获取数据库中信息
+
+            log = se.query(Log).order_by(Log.id.desc()).offset((pageno - 1) * pagesize).limit(pagesize).all()
+            log_list = [row.to_dict() for row in log]
+            self.set_status(200)
+            self.finish({'message': 'success', 'data': json.dumps(log_list)})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege': 'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
+
 
 
 class TermLogRecorder(object):
@@ -333,6 +370,7 @@ class TermLogRecorder(object):
             se.commit()
             se.flush()
         except Exception, e:
+            logger.error(traceback.format_exc())
             se.rollback()
         finally:
             se.close()

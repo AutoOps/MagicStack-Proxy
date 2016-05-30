@@ -7,11 +7,12 @@
 # @Version :
 
 from tornado.web import url
-from handlers.websocket.v1_0.api import WebTerminalHandler, LogInfoHandler
+from handlers.websocket.v1_0.api import *
 
 VERSION = 'v1.0' # API Version
 
 urls = [
     url(r'/ws/terminal', WebTerminalHandler),
-    url(r'/loginfo/(?P<log_id>.*)$', LogInfoHandler),
+    url(r'/replay/(?P<log_id>.*)$', ReplayHandler),
+    url(r'/loginfo/?$', LoginfoHandler),
 ]

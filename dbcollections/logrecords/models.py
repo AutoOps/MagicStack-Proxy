@@ -31,6 +31,18 @@ import time
 from conf.settings import engine, Base
 
 
+def to_dict(self):
+    d = dict()
+    for c in self.__table__.columns:
+        d[c.name] = getattr(self, c.name, None)
+        if isinstance(getattr(self, c.name, None), datetime.datetime):
+            d[c.name] = getattr(self, c.name, None).strftime('%Y-%m-%d %H:%M:%S')
+    return d
+
+
+Base.to_dict = to_dict
+
+
 class TermLog(Base):
     __tablename__ = 'term_log'
 
