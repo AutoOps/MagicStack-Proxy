@@ -264,7 +264,7 @@ class LoginfoHandler(RequestHandler):
             log = se.query(Log).order_by(Log.id.desc()).offset((pageno - 1) * pagesize).limit(pagesize).all()
             log_list = [row.to_dict() for row in log]
             self.set_status(200)
-            self.finish({'message': 'success', 'data': json.dumps(log_list)})
+            self.finish({'message': 'success', 'data':log_list})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
