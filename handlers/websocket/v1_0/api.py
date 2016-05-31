@@ -49,6 +49,7 @@ class WebTerminalHandler(WebSocketHandler):
         self.log_time_f = None
         self.log = None
         self.id = 0
+        self.sendlog2browser = False
         self.user = None
         self.ssh = None
         self.channel = None
@@ -182,6 +183,10 @@ class WebTerminalHandler(WebSocketHandler):
                     logger.info(recv)
                     if not len(recv):
                         return
+                    # 第一次连接时，将本地生成的log_id返回前台
+                    if not self.sendlog2browser:
+                        data = '[log_id=%s]' % self.log
+                        self.sendlog2browser = True
                     data += recv
                     if self.term.vim_flag:
                         self.term.vim_data += recv
@@ -253,7 +258,7 @@ class LoginfoHandler(RequestHandler):
             if count:
                 cnt = se.query(Log).count()
                 self.set_status(200)
-                self.finish({'message':'success', 'count': cnt})
+                self.finish({'message': 'success', 'count': cnt})
                 return
 
             # 查询日志信息，分页
@@ -264,7 +269,7 @@ class LoginfoHandler(RequestHandler):
             log = se.query(Log).order_by(Log.id.desc()).offset((pageno - 1) * pagesize).limit(pagesize).all()
             log_list = [row.to_dict() for row in log]
             self.set_status(200)
-            self.finish({'message': 'success', 'data':log_list})
+            self.finish({'message': 'success', 'data': log_list})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
@@ -277,7 +282,6 @@ class LoginfoHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
-
 
 
 class TermLogRecorder(object):
