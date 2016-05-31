@@ -19,23 +19,30 @@ from pytz import utc
 # Define APScheduler Job Stores / Triggers / Executors / Scheduler
 from apscheduler.schedulers.tornado import TornadoScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler.executors.pool import ProcessPoolExecutor
+from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 
-# define job stores
-jobstors = {
-    'default': SQLAlchemyJobStore('sqlite:///jobs.sqlite')
-}
+from conf.settings import BASE_DIR
 
-# define executors
-executors = {
-    'default': ProcessPoolExecutor(5)
-}
 
-# define job
-job_defaults = {
-    'coalesce': False,
-    'max_instances': 3
-}
+def get_scheduler():
+    # define job stores
+    jobstores = {
+        'default': SQLAlchemyJobStore(url='sqlite:///{0}/scheduler.db'.format(BASE_DIR))
+    }
 
-scheduler = TornadoScheduler(jobstors=jobstors, executors=executors,
-                             job_defaults=job_defaults, timezone=utc)
+    # define executors
+    executors = {
+        'default': ThreadPoolExecutor(5)
+    }
+
+    # define job
+    job_defaults = {
+        'coalesce': False,
+        'max_instances': 3
+    }
+    return TornadoScheduler(jobstores=jobstores, executors=executors,
+                            job_defaults=job_defaults, timezone=utc)
+
+
+scheduler = get_scheduler()
+
