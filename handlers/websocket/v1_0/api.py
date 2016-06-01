@@ -258,9 +258,8 @@ class LoginfoHandler(RequestHandler):
             se = get_dbsession()
             if log_id:
                 log_info = se.query(Log).get(log_id)
-                logger.info("get log {0} info".format(log_id))
                 if not log_info:
-                    raise HTTPError(404, "log not found")
+                    raise HTTPError(404, "Log Not Found")
 
                 self.set_status(200)
                 self.finish({'message': 'success', 'data': log_info.to_dict()})
@@ -281,6 +280,44 @@ class LoginfoHandler(RequestHandler):
             log_list = [row.to_dict() for row in log]
             self.set_status(200)
             self.finish({'message': 'success', 'data': log_list})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege': 'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
+
+
+class TtyLoginfoHandler(RequestHandler):
+    #@auth
+    def get(self, *args, **kwargs):
+        '''
+           根据指定Log的id查询所有的Ttylog信息
+        '''
+        try:
+            log_id = self.get_argument('log_id', None)
+
+            # 获取数据库中信息
+            se = get_dbsession()
+            ttylog = se.query(TtyLog)
+            if log_id:
+                ttylog = ttylog.filter_by(log_id=log_id)
+
+            ttylog = ttylog.order_by(TtyLog.id.desc()).all()
+
+            if not ttylog:
+                raise HTTPError(404, 'Ttylog Not Found')
+
+            ttylog_list = [row.to_dict() for row in ttylog]
+
+            self.set_status(200)
+            self.finish({'message': 'success', 'data': ttylog_list})
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')

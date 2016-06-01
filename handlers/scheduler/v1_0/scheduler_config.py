@@ -27,7 +27,7 @@ from conf.settings import BASE_DIR
 def get_scheduler():
     # define job stores
     jobstores = {
-        'default': SQLAlchemyJobStore(url='sqlite:///{0}/scheduler.db'.format(BASE_DIR))
+        'default': SQLAlchemyJobStore(url='sqlite:///{0}/magicstack.db'.format(BASE_DIR))
     }
 
     # define executors

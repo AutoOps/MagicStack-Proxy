@@ -16,4 +16,5 @@ urls = [
     url(r'/replay/(?P<log_id>.*)$', ReplayHandler),
     url(r'/loginfo/?$', LoginfoHandler),
     url(r'/loginfo/(?P<log_id>.*)$', LoginfoHandler),
+    url(r'/ttylog/?$', TtyLoginfoHandler),
 ]
