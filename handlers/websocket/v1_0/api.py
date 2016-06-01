@@ -260,7 +260,7 @@ class LoginfoHandler(RequestHandler):
                 log_info = se.query(Log).get(log_id)
                 logger.info("get log {0} info".format(log_id))
                 if not log_info:
-                    raise HTTPError(status_code=404, "log not found")
+                    raise HTTPError(404, "log not found")
 
                 self.set_status(200)
                 self.finish({'message': 'success', 'data': log_info.to_dict()})
