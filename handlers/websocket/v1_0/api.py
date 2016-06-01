@@ -39,6 +39,39 @@ from util import renderJSON, WebTty, MyThread
 logger = logging.getLogger()
 
 
+class WebTerminalKillHandler(RequestHandler):
+    #@auth
+    def get(self):
+        try:
+            ws_id = self.get_argument('id')
+            se = get_dbsession()
+            EXSITS = False
+            for ws in WebTerminalHandler.clients:
+                if ws.id == int(ws_id):
+                    logger.info("Kill log id %s" % ws_id)
+                    EXSITS = True
+                    ws.on_close()
+
+            if not EXSITS:
+                raise HTTPError(404, 'WebTerminal Not Found')
+
+            log = se.query(Log).get(ws_id).to_dict()
+            self.set_status(200)
+            self.finish({'message': 'success', 'data': log})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege': 'value error'})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
+
+
 class WebTerminalHandler(WebSocketHandler):
     clients = []
     tasks = []
@@ -158,8 +191,8 @@ class WebTerminalHandler(WebSocketHandler):
             log = Log(id=self.log, is_finished=True, end_time=datetime.datetime.now(), filename=self.termlog.filename)
             self.se.begin()
             self.se.merge(log)
-            self.se.commit()
             self.se.flush()
+            self.se.commit()
             self.log_file_f.close()
             self.log_time_f.close()
             self.ssh.close()
@@ -172,6 +205,8 @@ class WebTerminalHandler(WebSocketHandler):
     def forward_outbound(self):
         # 获取时间日志句柄，内容日志句柄用于后续日志回放，获取实际Log ID
         self.log_file_f, self.log_time_f, self.log = self.term.get_log()
+        self.id = self.log
+        logger.info("print >>>>> self.id {0}".format(self.id))
         self.termlog.setid(self.log)
         try:
             data = ''

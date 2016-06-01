@@ -13,6 +13,7 @@ VERSION = 'v1.0' # API Version
 
 urls = [
     url(r'/ws/terminal', WebTerminalHandler),
+    url(r'/ws/terminal/kill/?$', WebTerminalKillHandler),
     url(r'/replay/(?P<log_id>.*)$', ReplayHandler),
     url(r'/loginfo/?$', LoginfoHandler),
     url(r'/loginfo/(?P<log_id>.*)$', LoginfoHandler),
