@@ -183,7 +183,7 @@ class WebTerminalHandler(WebSocketHandler):
                     logger.info(recv)
                     if not len(recv):
                         return
-                    # 第一次连接时，将本地生成的log_id返回前台
+                        # 第一次连接时，将本地生成的log_id返回前台
                     if not self.sendlog2browser:
                         data = '[log_id=%s]' % self.log
                         self.sendlog2browser = True
@@ -253,7 +253,19 @@ class LoginfoHandler(RequestHandler):
     #@auth
     def get(self, *args, **kwargs):
         try:
+            # 获取某条日志信息
+            log_id = kwargs.get('log_id', None)
             se = get_dbsession()
+            if log_id:
+                log_info = se.query(Log).get(log_id)
+                logger.info("get log {0} info".format(log_id))
+                if not log_info:
+                    raise HTTPError(status_code=404, "log not found")
+
+                self.set_status(200)
+                self.finish({'message': 'success', 'data': log_info.to_dict()})
+                return
+
             count = self.get_argument('count', False)
             if count:
                 cnt = se.query(Log).count()
@@ -265,7 +277,6 @@ class LoginfoHandler(RequestHandler):
             pageno = int(self.get_argument('pageno', 1))
             pagesize = int(self.get_argument('pagesize', 10))
             # 获取数据库中信息
-
             log = se.query(Log).order_by(Log.id.desc()).offset((pageno - 1) * pagesize).limit(pagesize).all()
             log_list = [row.to_dict() for row in log]
             self.set_status(200)
@@ -371,8 +382,8 @@ class TermLogRecorder(object):
                                  filename=filename, history=json.dumps(self.CMD),
                                  timestamp=int(self.recoderStartTime), user_id=self.user)
             se.add(record)
-            se.commit()
             se.flush()
+            se.commit()
         except Exception, e:
             logger.error(traceback.format_exc())
             se.rollback()
