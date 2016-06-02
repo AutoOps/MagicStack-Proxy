@@ -41,7 +41,7 @@ def get_scheduler():
         'max_instances': 3
     }
     return TornadoScheduler(jobstores=jobstores, executors=executors,
-                            job_defaults=job_defaults, timezone=utc)
+                            job_defaults=job_defaults)
 
 
 scheduler = get_scheduler()

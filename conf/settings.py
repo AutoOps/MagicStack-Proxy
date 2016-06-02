@@ -6,18 +6,18 @@
 # @Link    : http://www.magicstack.cn/
 # @Version :
 
-import logging
+import logging.config
 import os
 import ConfigParser
 
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 
-logging.basicConfig(
-                    level = logging.DEBUG,
-                    format='%(filename)s[line:%(lineno)d] %(levelname)s (%(asctime)s) %(message)s',
-                    datefmt='%H:%M:%S',
-)
+# logging.basicConfig(
+#                     level = logging.DEBUG,
+#                     format='%(filename)s[line:%(lineno)d] %(levelname)s (%(asctime)s) %(message)s',
+#                     datefmt='%H:%M:%S',
+# )
 
 config = ConfigParser.ConfigParser()
 
@@ -29,19 +29,19 @@ API_PORT = 8100
 COBBLER_RPC_HOST = '172.16.30.69'
 COBBLER_RPC_PORT = 80
 COBBLER_RPC_PROC = 'http'
-COBBLER_RPC_URL  = '{0}://{1}:{2}/cobbler_api'.format( COBBLER_RPC_PROC, COBBLER_RPC_HOST, COBBLER_RPC_PORT )
+COBBLER_RPC_URL = '{0}://{1}:{2}/cobbler_api'.format(COBBLER_RPC_PROC, COBBLER_RPC_HOST, COBBLER_RPC_PORT)
 COBBLER_USERNAME = 'cobbler'
 COBBLER_PASSWORD = 'cobbler'
 
 # 用户定义，可放入到数据库中
 USERS = {
-    'test':'123456'
+    'test': '123456'
 }
 
 # timestamp available
-TIMESTAMP_AVAI = 15*60 # seconds
+TIMESTAMP_AVAI = 15 * 60 # seconds
 
-UPLOAD_PATH = os.path.join(os.path.dirname(__file__),'..', 'upload_files')
+UPLOAD_PATH = os.path.join(os.path.dirname(__file__), '..', 'upload_files')
 
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
@@ -60,4 +60,4 @@ KEY = "941enj9neshd1wes"
 engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR))
 Base = declarative_base()
 metadata = MetaData(engine)
-
+logging.config.fileConfig(os.sep.join([BASE_DIR, 'conf', 'logging.conf']))
