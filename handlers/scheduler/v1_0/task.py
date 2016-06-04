@@ -20,10 +20,21 @@ import traceback
 import logging
 import os
 import datetime
+import json
+from collections import namedtuple
+
+from ansible.parsing.dataloader import DataLoader
+from ansible.vars import VariableManager
+from ansible.inventory import Inventory, Host, Group
+from ansible.playbook.play import Play
+from ansible.playbook import Playbook
+from ansible.executor.task_queue_manager import TaskQueueManager
+from ansible.executor.playbook_executor import PlaybookExecutor
+from ansible.plugins.callback import CallbackBase
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
-from conf.settings import LOG_DIR
+from conf.settings import LOG_DIR, SPECIAL_MODULES
 
 handler = logging.handlers.RotatingFileHandler(os.sep.join([LOG_DIR, 'apscheduler.log']), maxBytes=1024 * 1024,
                                                backupCount=5)
@@ -55,12 +66,12 @@ def task(func):
             task_id = ap_task.id
 
             # exec task func
-            result = func(**kwargs)
+            result = json.dumps(func(**kwargs))
 
             # update database
             logger.info('task [{0}] end'.format(kwargs.get('job_id')))
             uap_task = Apscheduler_Task(id=task_id, end_time=datetime.datetime.now(), is_finished=True,
-                                        status=1, result=result)
+                                        status='complete', result=result)
             se.begin()
             se.merge(uap_task)
             se.flush()
@@ -70,7 +81,7 @@ def task(func):
             se.rollback()
             if task_id:
                 uap_task = Apscheduler_Task(id=task_id, end_time=datetime.datetime.now(), is_finished=True,
-                                            status=2, result=traceback.format_exc())
+                                            status='failed', result=traceback.format_exc())
                 se.begin()
                 se.merge(uap_task)
                 se.flush()
@@ -83,21 +94,250 @@ def task(func):
 
 
 @task
-def ansible(**kwargs):
-    logger.info('ansible output kwargs {0}'.format(kwargs))
+def ansible_play(**kwargs):
+    logger.info('ansible play output kwargs {0}'.format(kwargs))
+
+    # Ansible Inventory Todo：考虑是否可拿走
+    resource = kwargs['resource']
+    # 被操作的主机
+    host_list = kwargs['host_list']
+    # 模块及模块所需参数
+    module_name = kwargs['module_name']
+    module_args = kwargs['module_args']
+    # todo check param
+
+    runner = AnsibleRunner(resource)
+    if module_name in SPECIAL_MODULES:
+        logger.info("special modeules , result not json")
+    result = runner.run_play(host_list, module_name, module_args)
+
+    return result
 
 
 @task
 def ansible_playbook(**kwargs):
-    pass
+    logger.info('ansible playbook output kwargs {0}'.format(kwargs))
+
+    # Ansible Inventory Todo：考虑是否可拿走
+    resource = kwargs['resource']
+    filenames = kwargs['filenames']
+
+    runner = AnsibleRunner(resource)
+    result = runner.run_playbook(filenames)
+
+    return result
+
+
+class ResultsCollector(CallbackBase):
+    def __init__(self, *args, **kwargs):
+        super(ResultsCollector, self).__init__(*args, **kwargs)
+        self.host_ok = {}
+        self.host_unreachable = {}
+        self.host_failed = {}
+        self.stdout = ''
+
+    def v2_runner_on_unreachable(self, result):
+        self.host_unreachable[result._host.get_name()] = result
+
+    def v2_runner_on_ok(self, result, *args, **kwargs):
+        self.host_ok[result._host.get_name()] = result
+
+    def v2_runner_on_failed(self, result, *args, **kwargs):
+        self.host_failed[result._host.get_name()] = result
+
+    def v2_playbook_on_task_start(self, task, is_conditional):
+
+        args = ', '.join(('%s=%s' % a for a in task.args.items()))
+        args = ' %s' % args
+        self.stdout += "TASK [%s%s]\n" % (task.get_name().strip(), args)
+
+    def v2_playbook_on_play_start(self, play):
+        name = play.get_name().strip()
+        if not name:
+            msg = "PLAY\n"
+        else:
+            msg = "PLAY [%s]\n" % name
+        self.stdout += msg
+
+
+class AnsibleInventory(Inventory):
+    """
+    this is my ansible inventory object.
+    """
+
+    def __init__(self, resource, loader, variable_manager):
+        """
+        resource的数据格式是一个列表字典，比如
+            {
+                "group1": {
+                    "hosts": [{"hostname": "10.10.10.10", "port": "22", "username": "test", "password": "mypass"}, ...],
+                    "vars": {"var1": value1, "var2": value2, ...}
+                }
+            }
+
+        如果你只传入1个列表，这默认该列表内的所有主机属于my_group组,比如
+            [{"hostname": "10.10.10.10", "port": "22", "username": "test", "password": "mypass"}, ...]
+        """
+        self.resource = resource
+        self.inventory = Inventory(loader=loader, variable_manager=variable_manager)
+        self.gen_inventory()
+
+    def my_add_group(self, hosts, groupname, groupvars=None):
+        """
+        add hosts to a group
+        """
+        my_group = Group(name=groupname)
+
+        # if group variables exists, add them to group
+        if groupvars:
+            for key, value in groupvars.iteritems():
+                my_group.set_variable(key, value)
+
+        # add hosts to group
+        for host in hosts:
+            # set connection variables
+            hostname = host.get("hostname")
+            hostip = host.get('ip', hostname)
+            hostport = host.get("port")
+            username = host.get("username")
+            password = host.get("password")
+            ssh_key = host.get("ssh_key")
+            # TODO Ansible2.0 参数已经废弃
+            my_host = Host(name=hostname, port=hostport)
+            my_host.set_variable('ansible_ssh_host', hostip)
+            my_host.set_variable('ansible_ssh_port', hostport)
+            my_host.set_variable('ansible_ssh_user', username)
+            my_host.set_variable('ansible_ssh_pass', password)
+            my_host.set_variable('ansible_ssh_private_key_file', ssh_key)
+
+            # set other variables
+            for key, value in host.iteritems():
+                if key not in ["hostname", "port", "username", "password"]:
+                    my_host.set_variable(key, value)
+                    # add to group
+            my_group.add_host(my_host)
+
+        self.inventory.add_group(my_group)
+
+    def gen_inventory(self):
+        """
+        add hosts to inventory.
+        """
+        if isinstance(self.resource, list):
+            self.my_add_group(self.resource, 'default_group')
+        elif isinstance(self.resource, dict):
+            for groupname, hosts_and_vars in self.resource.iteritems():
+                self.my_add_group(hosts_and_vars.get("hosts"), groupname, hosts_and_vars.get("vars"))
+
+
+class AnsibleRunner(object):
+    def __init__(self, resource, *args, **kwargs):
+        self.resource = resource
+        self.results_raw = {}
+        self._initialize_data()
+
+    def _initialize_data(self):
+
+        Options = namedtuple('Options', ['connection', 'module_path', 'forks', 'timeout', 'remote_user',
+                                         'ask_pass', 'private_key_file', 'ssh_common_args', 'ssh_extra_args',
+                                         'sftp_extra_args', 'scp_extra_args', 'become', 'become_method', 'become_user',
+                                         'ask_value_pass', 'verbosity', 'check', 'listhosts',
+                                         'listtags', 'listtasks', 'syntax'])
+
+        self.variable_manager = VariableManager()
+        self.loader = DataLoader()
+        self.options = Options(connection='smart', module_path='/usr/share/ansible', forks=100, timeout=10,
+                               remote_user='root', ask_pass=False, private_key_file=None, ssh_common_args=None,
+                               ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None, become=None,
+                               become_method=None, become_user='root', ask_value_pass=False, verbosity=None,
+                               check=False, listhosts=None, listtags=None, listtasks=None, syntax=None)
+
+        self.passwords = dict()
+        self.inventory = AnsibleInventory(self.resource, self.loader, self.variable_manager).inventory
+        self.variable_manager.set_inventory(self.inventory)
+
+    def run_play(self, host_list, module_name, module_args):
+        """
+        run play
+        :param host_list is list,
+        :param module_name is string
+        :param module_args is string
+        """
+        self.results_raw = {'success': {}, 'failed': {}, 'unreachable': {}}
+
+        play = None
+        # create play with tasks
+        play_source = dict(
+            name="Ansible Play",
+            hosts=host_list,
+            gather_facts='no',
+            tasks=[dict(action=dict(module=module_name, args=module_args))]
+        )
+        play = Play().load(play_source, variable_manager=self.variable_manager, loader=self.loader)
+        # actually run it
+        tqm = None
+        callback = ResultsCollector()
+        try:
+            tqm = TaskQueueManager(
+                inventory=self.inventory,
+                variable_manager=self.variable_manager,
+                loader=self.loader,
+                options=self.options,
+                passwords=self.passwords,
+            )
+            tqm._stdout_callback = callback
+            tqm.run(play)
+        finally:
+            if tqm is not None:
+                tqm.cleanup()
+
+        for host, result in callback.host_ok.items():
+            self.results_raw['success'][host] = result._result
+
+        for host, result in callback.host_failed.items():
+            self.results_raw['failed'][host] = result._result['msg']
+
+        for host, result in callback.host_unreachable.items():
+            self.results_raw['unreachable'][host] = result._result['msg']
+
+        logger.info(self.results_raw)
+        return self.results_raw
+
+    def run_playbook(self, filenames, fork=5):
+        '''
+             :param filenames is list ,
+             :param fork is interge, default 5
+        '''
+        self.results_raw = {'success': {}, 'failed': {}, 'unreachable': {}}
+
+        callback = ResultsCollector()
+
+        # actually run it
+        executor = PlaybookExecutor(
+            playbooks=filenames, inventory=self.inventory, variable_manager=self.variable_manager, loader=self.loader,
+            options=self.options, passwords=self.passwords,
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+
+        logger.info(">>>> {0}".format(callback.stdout))
+        return callback.stdout
 
 
 TASK = {
-    'ansible': ansible,
+    'ansible': ansible_play,
     'ansible-pb': ansible_playbook,
 }
 
 if __name__ == "__main__":
-    d = {'a': 1, 'b': 2}
-    ansible(**d)
+    resource = [
+        {'hostname': '172.16.30.136',
+         'port': 22,
+         'username': 'root',
+         'password': '123456'}
+    ]
+    h_list = ['172.16.30.136']
+
+    ar = AnsibleRunner(resource)
+
 

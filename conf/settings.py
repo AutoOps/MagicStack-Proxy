@@ -61,3 +61,11 @@ engine = create_engine('sqlite:///{0}/magicstack.db'.format(BASE_DIR))
 Base = declarative_base()
 metadata = MetaData(engine)
 logging.config.fileConfig(os.sep.join([BASE_DIR, 'conf', 'logging.conf']))
+
+
+# Ansible
+SPECIAL_MODULES = [
+    'shell',
+    'raw',
+    'command'
+]

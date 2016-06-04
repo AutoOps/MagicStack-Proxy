@@ -46,7 +46,7 @@ class Apscheduler_Task(Base):
     start_time = Column(DateTime, default=datetime.datetime.now)
     end_time = Column(DateTime)
     is_finished = Column(Boolean, default=False)
-    status = Column(String(100), default=0 ) # 0 初始化 1 成功 2 失败
+    status = Column(String(100), default='running' ) # running 运行中 complete 完成  failed
     result = Column(Text)
 
 
