@@ -31,10 +31,12 @@ from ansible.playbook import Playbook
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.plugins.callback import CallbackBase
+from ansible.plugins.callback.default import CallbackModule
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
 from conf.settings import LOG_DIR, SPECIAL_MODULES
+from display import LogDisplay
 
 handler = logging.handlers.RotatingFileHandler(os.sep.join([LOG_DIR, 'apscheduler.log']), maxBytes=1024 * 1024,
                                                backupCount=5)
@@ -66,7 +68,7 @@ def task(func):
             task_id = ap_task.id
 
             # exec task func
-            result = json.dumps(func(**kwargs))
+            result = func(**kwargs)
 
             # update database
             logger.info('task [{0}] end'.format(kwargs.get('job_id')))
@@ -106,7 +108,7 @@ def ansible_play(**kwargs):
     module_args = kwargs['module_args']
     # todo check param
 
-    runner = AnsibleRunner(resource)
+    runner = AnsibleRunner(**kwargs)
     if module_name in SPECIAL_MODULES:
         logger.info("special modeules , result not json")
     result = runner.run_play(host_list, module_name, module_args)
@@ -122,42 +124,10 @@ def ansible_playbook(**kwargs):
     resource = kwargs['resource']
     filenames = kwargs['filenames']
 
-    runner = AnsibleRunner(resource)
+    runner = AnsibleRunner(**kwargs)
     result = runner.run_playbook(filenames)
 
     return result
-
-
-class ResultsCollector(CallbackBase):
-    def __init__(self, *args, **kwargs):
-        super(ResultsCollector, self).__init__(*args, **kwargs)
-        self.host_ok = {}
-        self.host_unreachable = {}
-        self.host_failed = {}
-        self.stdout = ''
-
-    def v2_runner_on_unreachable(self, result):
-        self.host_unreachable[result._host.get_name()] = result
-
-    def v2_runner_on_ok(self, result, *args, **kwargs):
-        self.host_ok[result._host.get_name()] = result
-
-    def v2_runner_on_failed(self, result, *args, **kwargs):
-        self.host_failed[result._host.get_name()] = result
-
-    def v2_playbook_on_task_start(self, task, is_conditional):
-
-        args = ', '.join(('%s=%s' % a for a in task.args.items()))
-        args = ' %s' % args
-        self.stdout += "TASK [%s%s]\n" % (task.get_name().strip(), args)
-
-    def v2_playbook_on_play_start(self, play):
-        name = play.get_name().strip()
-        if not name:
-            msg = "PLAY\n"
-        else:
-            msg = "PLAY [%s]\n" % name
-        self.stdout += msg
 
 
 class AnsibleInventory(Inventory):
@@ -231,10 +201,10 @@ class AnsibleInventory(Inventory):
 
 
 class AnsibleRunner(object):
-    def __init__(self, resource, *args, **kwargs):
-        self.resource = resource
-        self.results_raw = {}
+    def __init__(self, **kwargs):
+        self.resource = kwargs['resource']
         self._initialize_data()
+        self.job_id = kwargs['job_id']
 
     def _initialize_data(self):
 
@@ -263,8 +233,6 @@ class AnsibleRunner(object):
         :param module_name is string
         :param module_args is string
         """
-        self.results_raw = {'success': {}, 'failed': {}, 'unreachable': {}}
-
         play = None
         # create play with tasks
         play_source = dict(
@@ -276,7 +244,9 @@ class AnsibleRunner(object):
         play = Play().load(play_source, variable_manager=self.variable_manager, loader=self.loader)
         # actually run it
         tqm = None
-        callback = ResultsCollector()
+        display = LogDisplay(logname=self.job_id)
+        # callback = ResultsCollector()
+        callback = CallbackModule(display=display)
         try:
             tqm = TaskQueueManager(
                 inventory=self.inventory,
@@ -291,27 +261,15 @@ class AnsibleRunner(object):
             if tqm is not None:
                 tqm.cleanup()
 
-        for host, result in callback.host_ok.items():
-            self.results_raw['success'][host] = result._result
-
-        for host, result in callback.host_failed.items():
-            self.results_raw['failed'][host] = result._result['msg']
-
-        for host, result in callback.host_unreachable.items():
-            self.results_raw['unreachable'][host] = result._result['msg']
-
-        logger.info(self.results_raw)
-        return self.results_raw
+        return display.get_log_json()
 
     def run_playbook(self, filenames, fork=5):
         '''
              :param filenames is list ,
              :param fork is interge, default 5
         '''
-        self.results_raw = {'success': {}, 'failed': {}, 'unreachable': {}}
-
-        callback = ResultsCollector()
-
+        display = LogDisplay(logname=self.job_id)
+        callback = CallbackModule(display=display)
         # actually run it
         executor = PlaybookExecutor(
             playbooks=filenames, inventory=self.inventory, variable_manager=self.variable_manager, loader=self.loader,
@@ -320,8 +278,7 @@ class AnsibleRunner(object):
         executor._tqm._stdout_callback = callback
         executor.run()
 
-        logger.info(">>>> {0}".format(callback.stdout))
-        return callback.stdout
+        return display.get_log_json()
 
 
 TASK = {
