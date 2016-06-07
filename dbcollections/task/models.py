@@ -42,7 +42,7 @@ class Apscheduler_Task(Base):
     __tablename__ = 'apscheduler_task'
 
     id = Column(Integer, primary_key=True)
-    job_id = Unicode(191, _warn_on_bytestring=False)
+    job_id = Column(Unicode(191, _warn_on_bytestring=False))
     start_time = Column(DateTime, default=datetime.datetime.now)
     end_time = Column(DateTime)
     is_finished = Column(Boolean, default=False)

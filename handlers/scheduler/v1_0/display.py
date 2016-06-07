@@ -157,7 +157,8 @@ class LogDisplay(Display):
         fileobj.write(msg2)
 
         # 写入日志
-        self._log(msg2)
+        msg3 = msg2.replace(u'\n', u'\r\n')
+        self._log(msg3)
 
         try:
             fileobj.flush()

@@ -31,7 +31,8 @@ from ansible.playbook import Playbook
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.plugins.callback import CallbackBase
-from ansible.plugins.callback.default import CallbackModule
+# from ansible.plugins.callback.default import CallbackModule
+from ansible.plugins.callback.minimal import CallbackModule
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
