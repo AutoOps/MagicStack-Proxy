@@ -15,7 +15,7 @@ import tornado.ioloop
 import tornado.httpserver
 from tornado.options import define, options
 
-from handlers.scheduler.v1_0.scheduler_config import scheduler
+from handlers.scheduler.v1_0.config import scheduler
 
 define("address", default='0.0.0.0', help="run on the given address", type=str)
 define("port", default=8100, help=u"设置cobbler-api端口")

@@ -30,7 +30,7 @@ from tornado.web import HTTPError
 
 from common.base import RequestHandler
 from utils.auth import auth
-from scheduler_config import scheduler, get_scheduler
+from config import scheduler, get_scheduler
 from task import TASK
 
 logger = logging.getLogger()

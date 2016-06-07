@@ -15,13 +15,23 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from pytz import utc
 # Define APScheduler Job Stores / Triggers / Executors / Scheduler
 from apscheduler.schedulers.tornado import TornadoScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 
+# ansible callback plugin
+from ansible.plugins.callback.default import CallbackModule as defaul_callback
+from ansible.plugins.callback.minimal import CallbackModule as minimal_callback
+
 from conf.settings import BASE_DIR
+
+CALLBACKMODULE = {
+    'default': defaul_callback,
+    'minimal': minimal_callback,
+}
+
+CALLBACK = 'default'
 
 
 def get_scheduler():

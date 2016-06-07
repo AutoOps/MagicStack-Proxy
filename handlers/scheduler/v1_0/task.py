@@ -20,24 +20,20 @@ import traceback
 import logging
 import os
 import datetime
-import json
 from collections import namedtuple
 
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars import VariableManager
 from ansible.inventory import Inventory, Host, Group
 from ansible.playbook.play import Play
-from ansible.playbook import Playbook
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.executor.playbook_executor import PlaybookExecutor
-from ansible.plugins.callback import CallbackBase
-# from ansible.plugins.callback.default import CallbackModule
-from ansible.plugins.callback.minimal import CallbackModule
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
 from conf.settings import LOG_DIR, SPECIAL_MODULES
 from display import LogDisplay
+from config import CALLBACK, CALLBACKMODULE
 
 handler = logging.handlers.RotatingFileHandler(os.sep.join([LOG_DIR, 'apscheduler.log']), maxBytes=1024 * 1024,
                                                backupCount=5)
@@ -246,8 +242,7 @@ class AnsibleRunner(object):
         # actually run it
         tqm = None
         display = LogDisplay(logname=self.job_id)
-        # callback = ResultsCollector()
-        callback = CallbackModule(display=display)
+        callback = CALLBACKMODULE[CALLBACK](display=display)
         try:
             tqm = TaskQueueManager(
                 inventory=self.inventory,
@@ -270,7 +265,7 @@ class AnsibleRunner(object):
              :param fork is interge, default 5
         '''
         display = LogDisplay(logname=self.job_id)
-        callback = CallbackModule(display=display)
+        callback = CALLBACKMODULE[CALLBACK](display=display)
         # actually run it
         executor = PlaybookExecutor(
             playbooks=filenames, inventory=self.inventory, variable_manager=self.variable_manager, loader=self.loader,
