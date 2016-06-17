@@ -65,24 +65,78 @@ class JobHandler(RequestHandler):
             if not isinstance(params[k], dict):
                 raise ValueError('param \'{0}\' must be json'.format(k))
 
+
+    def _get_job_info(self, job):
+        '''
+            根据job对象，组织返回前台的job数据字典
+        '''
+        triggers = dict()
+        for filed in job.trigger.fields:
+            if not filed.is_default:
+                triggers[filed.name] = str(filed)
+        job_info = {
+            'job_id': job.id,
+            'job_trigger': triggers,
+            'job_next_run_time': job.next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        return job_info
+
     #@auth
     def get(self, *args, **kwargs):
-        job_id = kwargs['job_id']
-        job_info = {}
-        logger.info("job-id>>>{0}".format(job_id))
+        '''
+            指定job_id，查询单个job信息
+            {
+                job_id:''
+                job_trigger:{
+                    ...,
+                },
+                job_next_run_time:'yyyy-mm-dd HH:MM:SS'
+            }
+            如果不指定，则查询所有job信息
+            {
+                job_id1:{
+                    job_trigger:{
+                        ...,
+                    },
+                    job_next_run_time:'yyyy-mm-dd HH:MM:SS'
+                },
+                job_id2:{
+                    job_trigger:{
+                        ...,
+                    },
+                    job_next_run_time:'yyyy-mm-dd HH:MM:SS'
+                }
+                ...
+            }
+        '''
         try:
-            logger.info(">>>>")
-            job = SCHEDULER.get_job(job_id)
-            logger.info("get_job >> {0}".format(job.coalesce))
-            logger.info("get_job >> {0}".format(job.func))
-            logger.info("get_job >> {0}".format(job.id))
-            logger.info("get_job >> {0}".format(job.max_instances))
-            logger.info("get_job >> {0}".format(job.name))
-            logger.info("get_job >> {0}".format(job.next_run_time))
-            logger.info("get_job >> {0}".format(job.trigger))
+            job_id = kwargs.get('job_id')
+            if job_id:
+                logger.info("job-id>>>{0}".format(job_id))
+                job = SCHEDULER.get_job(job_id)
+                if not job:
+                    raise HTTPError(404, "job not found")
+
+                logger.info("job_info >> {0}".format(self._get_job_info(job)))
+                self.finish({"message": 'get job success', "job": self._get_job_info(job)})
+            else:
+                jobs = SCHEDULER.get_jobs()
+                jobs_info = dict()
+                for job in jobs:
+                    job_info = self._get_job_info(job)
+                    job_id = job_info.pop('job_id')
+                    jobs_info[job_id] = job_info
+
+                self.finish({"message": 'get jobs success', "jobs": jobs_info})
+
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
         except:
             logger.error(traceback.format_exc())
-        self.finish({"message": 'get job success'})
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
 
     #@auth
     def post(self, *args, **kwargs):
@@ -116,7 +170,7 @@ class JobHandler(RequestHandler):
             job = SCHEDULER.add_job(TASK[task_name], 'cron', kwargs=task_kwargs, id=task_kwargs['job_id'],
                                     **trigger_kwargs)
 
-            self.finish({'message': 'add success', 'job-id': job.id})
+            self.finish({'message': 'add success', 'job': self._get_job_info(job)})
         except ValueError, error:
             logger.error(traceback.format_exc())
             self.set_status(400, error.message)
@@ -133,7 +187,38 @@ class JobHandler(RequestHandler):
 
     #@auth
     def put(self, *args, **kwargs):
-        pass
+        '''
+
+        '''
+        # 必输参数
+        _M_PARAMS = ['trigger_kwargs', ]
+        # 字典参数
+        _D_PARAMS = ['trigger_kwargs', ]
+
+        try:
+            params = json.loads(self.request.body)
+            job_id = kwargs['job_id']
+            logger.info("job-id>>>{0}".format(job_id))
+
+            # 检查参数
+            self._check_params(params, _M_PARAMS, _D_PARAMS)
+            trigger_kwargs = params.get('trigger_kwargs', {})
+
+            job = SCHEDULER.reschedule_job(job_id, trigger='cron', **trigger_kwargs)
+
+            self.finish({'message': 'update success', 'job': self._get_job_info(job)})
+        except ValueError, error:
+            logger.error(traceback.format_exc())
+            self.set_status(400, error.message)
+            self.finish({'messege': error.message})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
 
     #@auth
     def delete(self, *args, **kwargs):
@@ -142,7 +227,9 @@ class JobHandler(RequestHandler):
         try:
             SCHEDULER.remove_job(job_id)
         except:
-            pass
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
         self.finish({"message": 'remove job success'})
 
 
