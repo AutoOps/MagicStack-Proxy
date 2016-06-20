@@ -22,6 +22,7 @@ VERSION = 'v1.0'
 
 urls = [
     url(r'/job', JobHandler),
+    url(r'/job/(?P<job_id>.*)/action/$', JobActionHandler),
     url(r'/job/(?P<job_id>.*)$', JobHandler),
-    url(r'/scheduler', SchedulerHandler)
+    url(r'/scheduler', SchedulerHandler),
 ]

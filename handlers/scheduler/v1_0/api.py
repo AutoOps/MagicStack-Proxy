@@ -27,6 +27,7 @@ except ImportError:
     import json
 
 from tornado.web import HTTPError
+from apscheduler.jobstores.base import JobLookupError
 
 from common.base import RequestHandler
 from utils.auth import auth
@@ -226,11 +227,54 @@ class JobHandler(RequestHandler):
         logger.info("job-id>>>{0}".format(job_id))
         try:
             SCHEDULER.remove_job(job_id)
+        except JobLookupError, e:
+            logger.info( "job %s has been removeds".format(job_id) )
+            self.set_status(200, 'job has been removed')
+            self.finish({'messege': 'job has been removed'})
         except:
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
         self.finish({"message": 'remove job success'})
+
+
+class JobActionHandler(RequestHandler):
+    '''
+        scheduler组件，job动作处理
+        pause: 暂停job运行
+        resume: 恢复job运行
+    '''
+
+    #@auth
+    def post(self, *args, **kwargs):
+        try:
+            params = json.loads(self.request.body)
+            action = params.get('action', 'pause')
+            job_id = kwargs.get('job_id')
+            if action == 'pause':
+                SCHEDULER.pause_job(job_id)
+            elif action == 'resume':
+                SCHEDULER.resume_job(job_id)
+            else:
+                raise ValueError("don't support action <{0}>".format(action))
+            self.set_status(200)
+            self.finish({'message': '{0} success'.format(action)})
+        except ValueError, error:
+            logger.error(traceback.format_exc())
+            self.set_status(400, error.message)
+            self.finish({'messege': error.message})
+        except JobLookupError, error:
+            logger.error(traceback.format_exc())
+            self.set_status(404, error.message)
+            self.finish({'messege': error.message})
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': 'failed'})
 
 
 class SchedulerHandler(RequestHandler):
