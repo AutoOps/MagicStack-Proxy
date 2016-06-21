@@ -27,12 +27,15 @@ except ImportError:
     import json
 
 from tornado.web import HTTPError
+from sqlalchemy import desc
 from apscheduler.jobstores.base import JobLookupError
 
 from common.base import RequestHandler
 from utils.auth import auth
 from config import scheduler, get_scheduler
 from task import TASK
+from dbcollections.task.models import Apscheduler_Task
+from utils.utils import get_dbsession
 
 logger = logging.getLogger()
 
@@ -228,7 +231,7 @@ class JobHandler(RequestHandler):
         try:
             SCHEDULER.remove_job(job_id)
         except JobLookupError, e:
-            logger.info( "job %s has been removeds".format(job_id) )
+            logger.info("job %s has been removeds".format(job_id))
             self.set_status(200, 'job has been removed')
             self.finish({'messege': 'job has been removed'})
         except:
@@ -317,5 +320,78 @@ class SchedulerHandler(RequestHandler):
     def _set_scheduler(self):
         global SCHEDULER
         SCHEDULER = get_scheduler()
+
+
+class JobExecHandler(RequestHandler):
+    '''
+        scheduler组件，Job任务执行结果查询
+    '''
+    #@auth
+    def get(self, *args, **kwargs):
+        '''
+            单个job执行结果，支持参数
+                limit
+                offset
+            给定job_id，查询结果如下
+                [
+                    {
+                        id:'',
+                        start_time:'',
+                        end_time:'',
+                        status:'',
+                        result:'',
+                    },
+                    {
+                        id:'',
+                        start_time:'',
+                        end_time:'',
+                        status:'',
+                        result:'',
+                    },
+                    ...
+                ]
+            如果不指定，则查询所有job信息
+                # todo
+                {
+                    job_id1:{
+                        last_exec_time:
+                        detail_url:
+                    },
+                    job_id2:{
+
+                    }
+                    ...
+                }
+        '''
+        try:
+            job_id = kwargs.get('job_id')
+            # 查询过滤
+            if job_id:
+                result = {}
+                # 获取分页信息
+                limit = int(self.get_argument('limit', 10))
+                page = int(self.get_argument('page', 1))
+                offset = (page - 1) * limit
+                se = get_dbsession()
+                tasks = se.query(Apscheduler_Task).filter(Apscheduler_Task.job_id == job_id).order_by(desc(Apscheduler_Task.id))
+                # 总条数
+                total_count = tasks.count()
+                result['total_count'] = total_count
+                logger.info('job [{0}] total_count [{1}]'.format(job_id, total_count))
+                tasks = tasks.limit(limit)
+                if offset > 0:
+                    tasks = tasks.offset(offset)
+                result['jobs'] = [task.to_dict() for task in tasks]
+                self.finish({"message": 'get job success', "result": result})
+            else:
+                pass
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except Exception, e:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': e.message})
 
 
