@@ -31,11 +31,11 @@ from sqlalchemy import desc
 from apscheduler.jobstores.base import JobLookupError
 
 from common.base import RequestHandler
-from utils.auth import auth
 from config import scheduler, get_scheduler
 from task import TASK
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
+from utils.auth import auth
 
 logger = logging.getLogger()
 
@@ -373,7 +373,8 @@ class JobExecHandler(RequestHandler):
                 page = int(self.get_argument('page', 1))
                 offset = (page - 1) * limit
                 se = get_dbsession()
-                tasks = se.query(Apscheduler_Task).filter(Apscheduler_Task.job_id == job_id).order_by(desc(Apscheduler_Task.id))
+                tasks = se.query(Apscheduler_Task).filter(Apscheduler_Task.job_id == job_id).order_by(
+                    desc(Apscheduler_Task.id))
                 # 总条数
                 total_count = tasks.count()
                 result['total_count'] = total_count
@@ -381,10 +382,40 @@ class JobExecHandler(RequestHandler):
                 tasks = tasks.limit(limit)
                 if offset > 0:
                     tasks = tasks.offset(offset)
-                result['jobs'] = [task.to_dict() for task in tasks]
+
+                # 查看任务配置触发器已经完全失效，通过查看apscheduler的表中是否存在
+                job = se.execute("select * from apscheduler_jobs where id = '{0}'".format(job_id)).first()
+                logger.info("job>>>>{0}".format(job))
+                result['job'] = {'next_run_time': job[1]} if job else ()
+                result['tasks'] = [task.to_dict() for task in tasks]
                 self.finish({"message": 'get job success', "result": result})
             else:
                 pass
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except Exception, e:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': e.message})
+
+
+class JobExecReplayHandler(RequestHandler):
+    '''
+        scheduler组件，Job任务执行结果回放
+    '''
+    #@auth
+    def get(self, *args, **kwargs):
+        '''
+
+        '''
+        try:
+            id = kwargs.get('task_id')
+            se = get_dbsession()
+            task = se.query(Apscheduler_Task).get(id)
+            self.set_status(200)
+            self.finish({'content': task.result})
         except HTTPError, http_error:
             logger.error(traceback.format_exc())
             self.set_status(http_error.status_code, http_error.log_message)

@@ -26,4 +26,5 @@ urls = [
     url(r'/job/(?P<job_id>.*)$', JobHandler),
     url(r'/scheduler', SchedulerHandler),
     url(r'/job_task/(?P<job_id>.*)$', JobExecHandler),
+    url(r'/job_task_replay/(?P<task_id>.*)$', JobExecReplayHandler),
 ]
