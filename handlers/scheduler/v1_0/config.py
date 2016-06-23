@@ -31,7 +31,7 @@ CALLBACKMODULE = {
     'minimal': minimal_callback,
 }
 
-CALLBACK = 'default'
+CALLBACK = 'minimal'
 
 
 def get_scheduler():

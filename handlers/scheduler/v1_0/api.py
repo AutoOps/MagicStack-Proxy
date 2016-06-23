@@ -370,8 +370,9 @@ class JobExecHandler(RequestHandler):
                 result = {}
                 # 获取分页信息
                 limit = int(self.get_argument('limit', 10))
+                offset = int(self.get_argument('offset', 0))
                 page = int(self.get_argument('page', 1))
-                offset = (page - 1) * limit
+                # offset = (page - 1) * limit
                 se = get_dbsession()
                 tasks = se.query(Apscheduler_Task).filter(Apscheduler_Task.job_id == job_id).order_by(
                     desc(Apscheduler_Task.id))
@@ -385,7 +386,6 @@ class JobExecHandler(RequestHandler):
 
                 # 查看任务配置触发器已经完全失效，通过查看apscheduler的表中是否存在
                 job = se.execute("select * from apscheduler_jobs where id = '{0}'".format(job_id)).first()
-                logger.info("job>>>>{0}".format(job))
                 result['job'] = {'next_run_time': job[1]} if job else ()
                 result['tasks'] = [task.to_dict() for task in tasks]
                 self.finish({"message": 'get job success', "result": result})
