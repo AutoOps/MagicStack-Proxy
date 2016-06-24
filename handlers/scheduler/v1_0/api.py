@@ -162,11 +162,12 @@ class JobHandler(RequestHandler):
             trigger_kwargs = params.get('trigger_kwargs', {})
             task_name = params.get('task_name', None)
             task_kwargs = params.get('task_kwargs', {})
+            job_id = params.get('job_id', None)
             if not TASK.get(task_name):
                 raise ValueError('task_name \'{0}\' not exists'.format(task_name))
 
-            # 添加调度任务，本地生成id，为后续任务处理保证唯一
-            task_kwargs['job_id'] = str(uuid.uuid1())
+            # 添加调度任务，本地生成id，为后续任务处理保证唯一，如果指定ID，则使用指定ID
+            task_kwargs['job_id'] = job_id if job_id else str(uuid.uuid1())
             logger.info(
                 "add job:\n id-[{0}]\n task_name-[{1}]\n task_kwargs-[{2}]\n trigger_kwargs-[{3}] ".format(
                     task_kwargs['job_id'], task_name, task_kwargs, trigger_kwargs))
