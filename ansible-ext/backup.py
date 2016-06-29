@@ -353,6 +353,10 @@ def main():
     upload_err_msg = {}
     remove_err_msg = {}
 
+    if not src:
+        # 备份数据库时，可以不指定
+        src = os.getcwd()
+
     # 压缩文件/目录参数 >> (待压缩文件/目录?， 压缩成文件?, 上传目标目录)
     compress_filenames = []
     remove_filenames = []
