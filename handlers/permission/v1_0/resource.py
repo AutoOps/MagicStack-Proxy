@@ -15,6 +15,7 @@ from paramiko import SSHException
 from paramiko.rsakey import RSAKey
 from uuid import uuid4
 
+
 KEY = '941enj9neshd1wes'
 logger = logging.getLogger()
 
@@ -166,30 +167,6 @@ def gen_keys(key="", key_path_dir=""):
     return key_path_dir
 
 
-def get_perm_info(role_id):
-    info = {}
-    #建立数据库连接
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    try:
-        role = session.query(PermRole).filter_by(id=int(role_id)).first()
-        sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
-                     commands=item.commands, comment=item.comment) for item in role.sudo]
-
-        role_info = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
-                         date_added=role.date_added,
-                         comment=role.comment,
-                         sudo=sudo_list)
-        info['role'] = role_info
-        info['assets'] = session.query(Asset).all()
-        info['asset_groups'] = session.query(AssetGroup).all()
-    except Exception as e:
-        logger.error(e)
-    finally:
-        session.close()
-    return info
-
-
 def permrole_to_dict(role):
     """
     把role对象装换成dict
@@ -296,23 +273,23 @@ def get_one_object(name, obj_id):
 def save_permrole(session, param):
     now = datetime.datetime.now()
     try:
-        # if not session.query('PermRole').filter_by(name=param['name']):
-        role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
-        logger.info('save_permrole:%s'%role)
-        key_content = param['key_content']
-        if key_content:
-            try:
-                key_path = gen_keys(key=key_content)
-            except SSHException, e:
-                raise ServerError(e)
-        else:
-            key_path = gen_keys()
-        role.key_path = key_path
-        sudo_ids = param['sudo_ids']
-        sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
-        role.sudo = sudo_list
-        session.add(role)
-        session.commit()
+        if param['name']:
+            role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
+            logger.info('save_permrole:%s'%role)
+            key_content = param['key_content']
+            if key_content:
+                try:
+                    key_path = gen_keys(key=key_content)
+                except SSHException, e:
+                    raise ServerError(e)
+            else:
+                key_path = gen_keys()
+            role.key_path = key_path
+            sudo_ids = param['sudo_ids']
+            sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
+            role.sudo = sudo_list
+            session.add(role)
+            session.commit()
     except Exception as e:
         logger.error(e)
 
@@ -320,7 +297,7 @@ def save_permrole(session, param):
 def save_permsudo(session, param):
     now = datetime.datetime.now()
     try:
-        if not session.query(PermSudo).filter_by(name=param['name']):
+        if param['name']:
             sudo = PermSudo(**param)
             sudo.date_added = now
             session.add(sudo)

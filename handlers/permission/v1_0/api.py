@@ -13,10 +13,12 @@ from concurrent.futures import ThreadPoolExecutor
 from common.base import RequestHandler
 from sqlalchemy.orm import sessionmaker
 from utils.auth import auth
-from resource import get_perm_info, get_all_objects, get_one_object, save_object, update_object, delete_object
+from resource import get_all_objects, get_one_object, save_object, update_object, delete_object
 from conf.settings import engine
 from dbcollections.task.models import Task
-logger = logging.getLogger()
+
+logging.basicConfig(file='/var/log/permission.log')
+logger = logging.getLogger(__name__)
 
 
 class PermObjectsHandler(RequestHandler):
