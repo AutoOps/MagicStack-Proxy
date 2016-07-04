@@ -162,11 +162,12 @@ class JobHandler(RequestHandler):
             trigger_kwargs = params.get('trigger_kwargs', {})
             task_name = params.get('task_name', None)
             task_kwargs = params.get('task_kwargs', {})
+            job_id = params.get('job_id', None)
             if not TASK.get(task_name):
                 raise ValueError('task_name \'{0}\' not exists'.format(task_name))
 
-            # 添加调度任务，本地生成id，为后续任务处理保证唯一
-            task_kwargs['job_id'] = str(uuid.uuid1())
+            # 添加调度任务，本地生成id，为后续任务处理保证唯一，如果指定ID，则使用指定ID
+            task_kwargs['job_id'] = job_id if job_id else str(uuid.uuid1())
             logger.info(
                 "add job:\n id-[{0}]\n task_name-[{1}]\n task_kwargs-[{2}]\n trigger_kwargs-[{3}] ".format(
                     task_kwargs['job_id'], task_name, task_kwargs, trigger_kwargs))
@@ -370,8 +371,9 @@ class JobExecHandler(RequestHandler):
                 result = {}
                 # 获取分页信息
                 limit = int(self.get_argument('limit', 10))
+                offset = int(self.get_argument('offset', 0))
                 page = int(self.get_argument('page', 1))
-                offset = (page - 1) * limit
+                # offset = (page - 1) * limit
                 se = get_dbsession()
                 tasks = se.query(Apscheduler_Task).filter(Apscheduler_Task.job_id == job_id).order_by(
                     desc(Apscheduler_Task.id))
@@ -385,7 +387,6 @@ class JobExecHandler(RequestHandler):
 
                 # 查看任务配置触发器已经完全失效，通过查看apscheduler的表中是否存在
                 job = se.execute("select * from apscheduler_jobs where id = '{0}'".format(job_id)).first()
-                logger.info("job>>>>{0}".format(job))
                 result['job'] = {'next_run_time': job[1]} if job else ()
                 result['tasks'] = [task.to_dict() for task in tasks]
                 self.finish({"message": 'get job success', "result": result})
