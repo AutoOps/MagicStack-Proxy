@@ -20,5 +20,6 @@ urls = [
     url(r'/distro/(?P<distro_id>.*)$', DistrosHandler),
     url(r'/event/(?P<event_id>.*)$', EventSingalHandler),
     url(r'/profile/?$', ProfileHandler),
-    url(r'/upload/?$', FileHandler)
+    url(r'/upload/?$', FileHandler),
+    url(r'/download/?$', FileHandler)
 ]

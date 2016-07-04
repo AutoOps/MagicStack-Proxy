@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2016 MagicStack 
+# Copyright (c) 2016 MagicStack
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -260,7 +260,7 @@ class MyFTP(ftplib.FTP):
                     self.cwd(dir)
             else:
                 self.cwd(dir)
-            # get remote file info
+                # get remote file info
         rsize = 0L
         try:
             rsize = self.size(remotefile)
@@ -341,7 +341,7 @@ def main():
             words = out.split('\n')[0].split()
             for i in range(len(words) - 1):
                 if words[i] == 'src':
-                    backnode = words[i+1]
+                    backnode = words[i + 1]
 
     # 结果字典
     result = dict(changed=True)
@@ -453,6 +453,10 @@ def main():
         cmp_file = compress.compress(src_filename, compress_filename)
         upload_filenames.append((cmp_file, compress_filename, dest))
 
+
+    # 将备份文件的信息输出到页面
+    backup_success_file = []
+
     remove_filenames.extend(map(lambda x: x[0], upload_filenames))
 
     for u_file, dest_filename, dest_path in upload_filenames:
@@ -462,16 +466,20 @@ def main():
         while times:
             try:
                 up = Upload(type, login_host, login_port, login_user, login_password)
-                #
-                up.upload(u_file, "/".join(
-                    [dest_path, backnode, datetime.datetime.now().strftime('%Y-%m-%d'), backup_type, dest_filename]))
+                # 记录备份文件信息，用于下载
+                t_upload_file = "/".join(
+                    [dest_path, backnode, datetime.datetime.now().strftime('%Y-%m-%d'), backup_type, dest_filename])
+                up.upload(u_file, t_upload_file)
                 upload_flag = True
                 times = 0
+                backup_success_file.append(t_upload_file)
             except Exception, e:
                 upload_err_msg[u_file] = e.message
                 times -= 1
                 # 休息60秒再次进行ftp进行上传
                 time.sleep(5)
+
+
 
     # delete tmp
     for r_file in remove_filenames:
@@ -484,6 +492,8 @@ def main():
         result['remove_file_err_msg'] = remove_err_msg
     if upload_err_msg:
         result['upload_file_err_msg'] = upload_err_msg
+    if backup_success_file:
+        result['backup_success_file'] = backup_success_file
     module.exit_json(**result)
 
 

@@ -28,6 +28,7 @@ from ansible.inventory import Inventory, Host, Group
 from ansible.playbook.play import Play
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.executor.playbook_executor import PlaybookExecutor
+from ansible.plugins.callback.minimal import CallbackModule as minimal_callback
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
@@ -243,6 +244,10 @@ class AnsibleRunner(object):
         tqm = None
         display = LogDisplay(logname=self.job_id)
         callback = CALLBACKMODULE[CALLBACK](display=display)
+        if module_name == 'backup':
+            # 对于备份模块，特殊处理，必须使用minimal，才能获取到文件名属性
+            callback = minimal_callback(display=display)
+
         try:
             tqm = TaskQueueManager(
                 inventory=self.inventory,

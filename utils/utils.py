@@ -8,12 +8,16 @@
 import hashlib
 import random
 import crypt
+import ftplib
+import sys
+import os
 
 from Crypto.Cipher import AES
 from binascii import b2a_hex, a2b_hex
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from conf.settings import USERS, engine, KEY
+
 
 class PyCrypt(object):
     """
@@ -109,3 +113,71 @@ def get_dbsession():
     """
     session = scoped_session(sessionmaker(bind=engine, autoflush=True, autocommit=True))
     return session
+
+
+class MyFTP(ftplib.FTP):
+    """
+        自定义FTP类，实现ftp上传下载及断点续传
+    """
+
+    def __init__(self, host="", port=21, user="", passwd="", timeout=60, force=False):
+
+        self.host = host
+        self.port = port
+        self.user = user
+        self.passwd = passwd
+        self.timeout = timeout
+        self.force = force
+        self._conn_login()
+
+    def _conn_login(self):
+        """
+            connection and login
+        """
+        try:
+            self.connect(self.host, self.port, self.timeout)
+        except Exception, e:
+            sys.stderr.write("connect failed - {0}".format(e))
+            raise ftplib.Error("connect failed - {0}".format(e))
+
+        try:
+            self.login(self.user, self.passwd)
+        except Exception, e:
+            sys.stderr.write("login failed - {0}".format(e))
+            raise ftplib.Error("login failed - {0}".format(e))
+
+    def splitpath(self, remotepath):
+        position = remotepath.rfind('/')
+        return (remotepath[:position + 1], remotepath[position + 1:])
+
+    def download(self, remote_path, local_path):
+        """
+            download
+        """
+        self.set_pasv(0)
+        # get remote dir and file
+        dires = self.splitpath(remote_path)
+        if dires[0]:
+            self.cwd(dires[0])
+        remotefile = dires[1]
+
+        # get remote file size
+        rsize = self.size(remotefile)
+        if rsize == 0:
+            return rsize
+
+        # check local file isn't exits and get the local file size
+        lsize = 0L
+        if os.path.exists(local_path):
+            lsize = os.stat(local_path).st_size
+
+        if lsize == rsize:
+            return rsize
+
+        blocksize = 1024 * 1024
+        # rest marker
+        cmpsize = lsize
+        lwrite = open(local_path, 'ab')
+        self.retrbinary('RETR ' + remotefile, lwrite.write, blocksize, cmpsize)
+        lwrite.close()
+        return rsize

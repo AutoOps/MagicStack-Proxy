@@ -10,12 +10,15 @@ import logging
 import traceback
 import os
 import uuid
+import stat
+from utils.utils import MyFTP
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
+from tornado import iostream
 from tornado.web import asynchronous, HTTPError
 from tornado.gen import coroutine
 from tornado.concurrent import run_on_executor
@@ -25,8 +28,9 @@ from common.base import RequestHandler
 from common.cobbler_api import System, Distros, Event, Profile
 from utils.utils import get_dbsession
 from utils.auth import auth
-from conf.settings import UPLOAD_PATH
+from conf.settings import UPLOAD_PATH, DOWNLOAD_PATH
 from dbcollections.nodes.models import Node
+from dbcollections.file.models import FileDownload
 
 logger = logging.getLogger()
 
@@ -395,18 +399,35 @@ class ProfileHandler(RequestHandler):
 
 
 class FileHandler(RequestHandler):
-    @auth
+    #@auth
     def post(self, *args, **kwargs):
         try:
-            file_metas = self.request.files['file'] # 提取表单中name为file的文件元数据
-            for meta in file_metas:
-                filename = meta['filename'].split(os.path.sep)[-1]
-                filepath = os.path.join(UPLOAD_PATH, filename)
-                print filepath
-                with open(filepath, 'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
-                    up.write(meta['body'])
+            params = json.loads(self.request.body)
+            if params.get('action', 'download'):
+                ftp_file_path = params.get('file_path')
+                file_name = os.sep.join([DOWNLOAD_PATH, params.get('file_name')])
+                # 创建ftp连接
+                ftp = MyFTP(host=params.get('ftp_host'), port=params.get('ftp_port', 21), user=params.get('ftp_user'),
+                            passwd=params.get('ftp_pwd'), timeout=2000)
+                ftp.download(ftp_file_path, file_name)
+                ftp.close()
+                fd = FileDownload(link=file_name)
+                se = get_dbsession()
+                se.begin()
+                se.add(fd)
+                se.commit()
                 self.set_status(200, 'ok')
-                self.finish()
+                self.finish({'link': fd.id})
+            else:
+                file_metas = self.request.files['file'] # 提取表单中name为file的文件元数据
+                for meta in file_metas:
+                    filename = meta['filename'].split(os.path.sep)[-1]
+                    filepath = os.path.join(UPLOAD_PATH, filename)
+                    with open(filepath, 'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
+                        up.write(meta['body'])
+                    self.set_status(200, 'ok')
+                    self.finish()
+
         except ValueError:
             logger.error(traceback.format_exc())
             self.set_status(400, 'value error')
@@ -420,6 +441,97 @@ class FileHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
+
+
+    @coroutine
+    def get(self):
+        # 验证link是否有效
+        link_id = self.get_argument('link_id', None)
+        if not link_id:
+            self.set_status(404)
+            self.write("""<html>
+                <head>
+                    <title>
+                    下载文件结果
+                    </title>
+                </head>
+                <body>
+                    文件下载失败，请检查下载连接是否正确或者重新进行下载。
+                </body>
+            </html>""")
+            self.finish()
+            return
+        se = get_dbsession()
+        fd = se.query(FileDownload).filter(FileDownload.id == link_id, FileDownload.status == True).first()
+        if not fd:
+            self.set_status(404)
+            self.write("""<html>
+                <head>
+                    <title>
+                    下载文件结果
+                    </title>
+                </head>
+                <body>
+                    文件下载失败，请检查下载连接是否正确或者重新进行下载。
+                </body>
+            </html>""")
+            self.finish()
+            return
+
+        ftp_file_path = fd.link
+        file_name = fd.link.split(os.sep)[-1]
+        se.begin()
+        fd.status = False
+        se.commit()
+        content_length = self.get_content_size(ftp_file_path)
+
+        self.set_header("Content-Length", content_length)
+        self.set_header("Content-Type", "application/octet-stream")
+        self.set_header("Content-Disposition",
+                        "attachment;filename=\"{0}\"".format(file_name)) #设置新的文件名
+        content = self.get_content(ftp_file_path)
+        if isinstance(content, bytes):
+            content = [content]
+        for chunk in content:
+            logger.info(chunk)
+            try:
+                self.write(chunk)
+                yield self.flush()
+            except iostream.StreamClosedError:
+                break
+        return
+
+    # 使用python自带的对于yield的应用对文件进行切片，for循环每运用一次就调用一次
+    def get_content(self, file_path):
+        start = None
+        end = None
+        with open(file_path, "rb") as file:
+            if start is not None:
+                file.seek(start)
+            if end is not None:
+                remaining = end - (start or 0)
+            else:
+                remaining = None
+            while True:
+                chunk_size = 64 * 1024 #每片的大小是64K
+                if remaining is not None and remaining < chunk_size:
+                    chunk_size = remaining
+                chunk = file.read(chunk_size)
+                if chunk:
+                    if remaining is not None:
+                        remaining -= len(chunk)
+                    yield chunk
+                else:
+                    if remaining is not None:
+                        assert remaining == 0
+                    return
+
+                    # 读取文件长度
+
+    def get_content_size(self, file_path):
+        stat_result = os.stat(file_path)
+        content_size = stat_result[stat.ST_SIZE]
+        return content_size
 
 
 
