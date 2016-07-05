@@ -407,7 +407,7 @@ class FileHandler(RequestHandler):
                 ftp_file_path = params.get('file_path')
                 file_name = os.sep.join([DOWNLOAD_PATH, params.get('file_name')])
                 # 创建ftp连接
-                ftp = MyFTP(host=params.get('ftp_host'), port=params.get('ftp_port', 21), user=params.get('ftp_user'),
+                ftp = MyFTP(host=params.get('ftp_host'), port=int(params.get('ftp_port', 21)), user=params.get('ftp_user'),
                             passwd=params.get('ftp_pwd'), timeout=2000)
                 ftp.download(ftp_file_path, file_name)
                 ftp.close()
@@ -493,7 +493,6 @@ class FileHandler(RequestHandler):
         if isinstance(content, bytes):
             content = [content]
         for chunk in content:
-            logger.info(chunk)
             try:
                 self.write(chunk)
                 yield self.flush()
