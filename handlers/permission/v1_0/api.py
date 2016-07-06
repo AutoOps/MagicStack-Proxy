@@ -7,9 +7,6 @@ except ImportError:
     import json
 
 from tornado.web import asynchronous, HTTPError
-from tornado.gen import coroutine
-from tornado.concurrent import run_on_executor
-from concurrent.futures import ThreadPoolExecutor
 from common.base import RequestHandler
 from sqlalchemy.orm import sessionmaker
 from utils.auth import auth
@@ -17,9 +14,7 @@ from resource import get_all_objects, get_one_object, save_object, update_object
 from conf.settings import engine
 from dbcollections.task.models import Task
 
-logging.basicConfig(file='/var/log/permission.log')
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger('permission')
 
 class PermObjectsHandler(RequestHandler):
 
@@ -30,12 +25,12 @@ class PermObjectsHandler(RequestHandler):
         """
         try:
             obj_name = kwargs.get('obj_name')
-            obj_id = kwargs.get('obj_id')
-            logger.info('obj_id:%s'%obj_id)
-            if obj_id == 'all':
+            obj_uuid = kwargs.get('obj_uuid')
+            logger.info('obj_uuid_id:%s'%obj_uuid)
+            if obj_uuid == 'all':
                 perm_objs = get_all_objects(obj_name)
             else:
-                perm_objs = get_one_object(obj_name, obj_id)
+                perm_objs = get_one_object(obj_name, obj_uuid)
             self.set_status(200, 'success')
             self.finish({'messege': perm_objs})
         except ValueError:
@@ -82,9 +77,9 @@ class PermObjectsHandler(RequestHandler):
         """
         try:
             obj_name = kwargs.get('obj_name')
-            obj_id = kwargs.get('obj_id')
+            obj_uuid = kwargs.get('obj_uuid')
             params = json.loads(self.request.body)
-            msg = update_object(obj_name, obj_id, params)
+            msg = update_object(obj_name, obj_uuid, params)
             self.set_status(200, 'success')
             self.finish({'messege': msg})
         except ValueError:
@@ -107,8 +102,8 @@ class PermObjectsHandler(RequestHandler):
         """
         try:
             obj_name = kwargs.get('obj_name')
-            obj_id = kwargs.get('obj_id')
-            msg = delete_object(obj_name, obj_id)
+            obj_uuid = kwargs.get('obj_uuid')
+            msg = delete_object(obj_name, obj_uuid)
             self.set_status(200, 'success')
             self.finish({'messege': msg})
         except ValueError:

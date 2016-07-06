@@ -9,15 +9,22 @@ import random
 from binascii import b2a_hex, a2b_hex
 from Crypto.Cipher import AES
 from sqlalchemy.orm import sessionmaker
-from conf.settings import engine, KEY_DIR
+from conf.settings import engine, KEY_DIR,LOG_DIR
 from dbcollections.permission.models import *
 from paramiko import SSHException
 from paramiko.rsakey import RSAKey
 from uuid import uuid4
+import os
 
+handler = logging.handlers.RotatingFileHandler(os.sep.join([LOG_DIR, 'permission.log']), maxBytes=1024 * 1024,
+                                               backupCount=5)
+fmt = '%(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s'
+formatter = logging.Formatter(fmt)   # 实例化formatter
+handler.setFormatter(formatter)      # 为handler添加formatter
+logger = logging.getLogger('permission')
+logger.addHandler(handler)
 
 KEY = '941enj9neshd1wes'
-logger = logging.getLogger()
 
 
 class ServerError(Exception):
@@ -245,7 +252,7 @@ def get_all_objects(name):
     return res
 
 
-def get_one_object(name, obj_id):
+def get_one_object(name, obj_uuid):
     """
     获取对应id的object
     """
@@ -254,71 +261,91 @@ def get_one_object(name, obj_id):
     session = Session()
     try:
         if name == 'PermRole':
-            role = session.query(PermRole).get(int(obj_id))
+            role = session.query(PermRole).get(obj_uuid)
             res = permrole_to_dict(role)
         elif name == 'PermSudo':
-            sudo = session.query(PermSudo).get(int(obj_id))
+            sudo = session.query(PermSudo).get(obj_uuid)
             res = dict(id=sudo.id, name=sudo.name, date_added=sudo.date_added.strftime('%Y-%m-%d %H:%M:%S'), commands=sudo.commands,
                        comment=sudo.comment)
         elif name == 'PermPush':
-            record = session.query(PermPush).get(int(obj_id))
+            record = session.query(PermPush).get(int(obj_uuid))
             res = permpush_to_dict(record)
     except Exception as e:
         logger.error(e)
     finally:
         session.close()
+    logger.info("get_one_object:%s  %s"%(name, res))
     return res
 
 
 def save_permrole(session, param):
+    """
+       保存 PermRole
+    """
     now = datetime.datetime.now()
+    msg_info = 'success'
     try:
-        if param['name']:
-            role = PermRole(name=param['name'], password=param['password'], comment=param['comment'], date_added=now)
-            logger.info('save_permrole:%s'%role)
-            key_content = param['key_content']
-            if key_content:
-                try:
-                    key_path = gen_keys(key=key_content)
-                except SSHException, e:
-                    raise ServerError(e)
-            else:
-                key_path = gen_keys()
-            role.key_path = key_path
-            sudo_ids = param['sudo_ids']
-            sudo_list = [session.query(PermSudo).get(int(item)) for item in sudo_ids]
-            role.sudo = sudo_list
-            session.add(role)
-            session.commit()
+        if not param['name']:
+            raise ServerError(u'名字不能为空')
+
+        role = PermRole(name=param['name'], password=param['password'], comment=param['comment'],
+                        date_added=now, uuid_id=param['uuid_id'], id=param['id'])
+        key_content = param['key_content']
+        if key_content:
+            try:
+                key_path = gen_keys(key=key_content)
+            except SSHException, e:
+                raise ServerError(e)
+        else:
+            key_path = gen_keys()
+        role.key_path = key_path
+        sudo_uuids = param['sudo_uuids']
+        sudo_list = [session.query(PermSudo).filter_by(uuid_id=item).first() for item in sudo_uuids]
+        logger.info('sudo_list:%s'%sudo_list)
+        role.sudo = sudo_list
+        session.add(role)
+        session.commit()
     except Exception as e:
+        msg_info = 'error'
         logger.error(e)
+    logger.info('svae perm_role:%s'%msg_info)
+    return msg_info
 
 
 def save_permsudo(session, param):
+    """
+       保存 sudo
+    """
+    msg_info = 'success'
     now = datetime.datetime.now()
     try:
-        if param['name']:
-            sudo = PermSudo(**param)
-            sudo.date_added = now
-            session.add(sudo)
-            session.commit()
+        if not param['name']:
+            raise ServerError(u'名字不能为空')
+
+        sudo = PermSudo(**param)
+        sudo.date_added = now
+        session.add(sudo)
+        session.commit()
     except Exception as e:
+        msg_info = 'error'
         logger.error(e)
+    logger.info('save perm_sudo:%s'%msg_info)
+    return msg_info
 
 
 def save_object(obj_name, param):
     """
     保存数据
     """
-    msg = 'success'
+    msg = ' '
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
     try:
         if obj_name == "PermRole":
-            save_permrole(session, param)
+            msg = save_permrole(session, param)
         elif obj_name == "PermSudo":
-            save_permsudo(session, param)
+            msg = save_permsudo(session, param)
     except Exception as e:
         logger.error(e)
         msg = 'error'
@@ -327,55 +354,65 @@ def save_object(obj_name, param):
     return msg
 
 
-def update_permrole(session,obj_id, param):
+def update_permrole(session,obj_uuid, param):
+    msg_info = 'success'
     try:
-        role = session.query(PermRole).get(int(obj_id))
+        if not param['name']:
+            raise ServerError(u'名字不能为空')
+        logger.info("uuid_id:%s"%obj_uuid)
+        role = session.query(PermRole).get(obj_uuid)
         key_content = param['key_content']
         # 生成随机密码，生成秘钥对
         if key_content:
             try:
                 key_path = gen_keys(key=key_content, key_path_dir=role.key_path)
+                role.key_path = key_path
             except SSHException:
                 raise ServerError('输入的密钥不合法')
             logger.info('Recreate role key: %s' % role.key_path)
-        sudo_list = []
-        for item in param['sudo_ids']:
-            sudo_list.append(session.query(PermSudo).get(int(item)))
+        sudo_list = [session.query(PermSudo).get(item) for item in param['sudo_uuids']]
+        logger.info("[permrole update] sudo_list:%s"%sudo_list)
         role.name = param['name']
         if param['password']:
             encrypt_pass = CRYPTOR.encrypt(param['password'])
             role.password = encrypt_pass
-        if key_content:
-            role.key_path = key_path
+
         role.sudo = sudo_list
         role.comment = param['comment']
         session.add(role)
         session.commit()
     except Exception as e:
+        msg_info = 'error'
         logger.error(e)
+    return msg_info
 
 
-def update_permsudo(session, obj_id, param):
+def update_permsudo(session, obj_uuid, param):
+    msg_info = 'success'
     try:
-        session.query(PermSudo).filter_by(id=int(obj_id)).update(param)
+        session.query(PermSudo).filter_by(uuid_id=obj_uuid).update(param)
         session.commit()
     except Exception as e:
+        msg_info = 'error'
         logger.error(e)
+    return msg_info
 
 
-def update_object(obj_name, obj_id, param):
+def update_object(obj_name, obj_uuid, param):
     """
     更新数据
     """
-    msg = 'success'
+    msg = ''
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
     try:
         if obj_name == "PermRole":
-            update_permrole(session, obj_id, param)
+            msg = update_permrole(session, obj_uuid, param)
+            logger.info("update permrole:%s"%msg)
         elif obj_name == "PermSudo":
-            update_permsudo(session, obj_id, param)
+            msg = update_permsudo(session, obj_uuid, param)
+            logger.info("update permsudo:%s"%msg)
     except Exception as e:
         logger.error(e)
         msg = 'error'
@@ -384,9 +421,10 @@ def update_object(obj_name, obj_id, param):
     return msg
 
 
-def delete_permrole(session, obj_id):
+def delete_permrole(session, obj_uuid):
+    msg_info = 'success'
     try:
-        role = session.query(PermRole).get(obj_id)
+        role = session.query(PermRole).get(obj_uuid)
         role_key = role.key_path
         #删除存储的秘钥，以及目录
         try:
@@ -400,31 +438,38 @@ def delete_permrole(session, obj_id):
         session.delete(role)
         session.commit()
     except Exception as e:
+        msg_info = 'error'
         logger.error(e)
+    return msg_info
 
 
-def delete_permsudo(session, obj_id):
+def delete_permsudo(session, obj_uuid):
+    msg_info = 'success'
     try:
-        sudo = session.query(PermSudo).get(obj_id)
+        sudo = session.query(PermSudo).get(obj_uuid)
         session.delete(sudo)
         session.commit()
     except Exception as e:
-          logger.error(e)
+        msg_info = 'error'
+        logger.error(e)
+    return msg_info
 
 
-def delete_object(obj_name, obj_id):
+def delete_object(obj_name, obj_uuid):
     """
     删除数据
     """
-    msg = 'success'
+    msg = ''
     Session = sessionmaker()
     Session.configure(bind=engine)
     session = Session()
     try:
         if obj_name == "PermRole":
-            delete_permrole(session, obj_id)
+            msg = delete_permrole(session, obj_uuid)
+            logger.info('delete permrole:%s'%msg)
         elif obj_name == "PermSudo":
-            delete_permsudo(session, obj_id)
+            msg = delete_permsudo(session, obj_uuid)
+            logger.info('delete permsudo:%s'%msg)
     except Exception as e:
         logger.error(e)
         msg = 'error'

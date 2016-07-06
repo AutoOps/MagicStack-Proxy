@@ -19,8 +19,9 @@ permrole_sudo = Table('permrole_sudo', Base.metadata,
 class PermRole(Base):
     __tablename__ = 'perm_role'
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100))
+    id = Column(Integer)
+    uuid_id = Column(String(200), primary_key=True)
+    name = Column(String(100), unique=True)
     password = Column(String(200))
     key_path = Column(String(200))
     date_added = Column(DateTime)
@@ -36,8 +37,9 @@ class PermRole(Base):
 class PermSudo(Base):
     __tablename__ = 'perm_sudo'
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(30))
+    id = Column(Integer)
+    uuid_id = Column(String(200), primary_key=True)
+    name = Column(String(30), unique=True)
     date_added = Column(DateTime)
     commands = Column(Text)
     comment = Column(Text)
