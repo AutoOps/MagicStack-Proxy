@@ -1,0 +1,9 @@
+---
+  - hosts: "{{ host_list }}"
+    tasks:
+      - name: config user sudo
+        vars:
+          - userName: "{{ username }}"
+          - cmdList: "{{ command_list }}"
+
+        template: src={{ template_dir }}/user.j2 dest=/etc/sudoers.d/{{ role_uuid }}

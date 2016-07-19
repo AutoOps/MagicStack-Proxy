@@ -47,6 +47,7 @@ DOWNLOAD_PATH = os.path.join(os.path.dirname(__file__), '..', 'download_files')
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 KEY_DIR = os.path.join(BASE_DIR, 'keys')
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 # log
 KEY = "941enj9neshd1wes"

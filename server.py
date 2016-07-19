@@ -31,6 +31,8 @@ if __name__ == "__main__":
 
     conf["handlers"] = urls.urls
     conf['cookie_secret'] = "bZJc2sWbQLKos6GkHn/VB9oXwQt8S0R0kRvJ5/xJ89E="
+    conf['template_path'] = os.path.join(os.path.dirname(__file__), "templates")
+    conf['compiled_template_cache'] = False
 
     tornado.options.parse_command_line()
 

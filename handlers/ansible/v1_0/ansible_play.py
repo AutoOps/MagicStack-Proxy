@@ -6,9 +6,13 @@ from ansible.inventory import Inventory, Host, Group
 from ansible.playbook.play import Play
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.plugins.callback import CallbackBase
+from ansible.executor.playbook_executor import PlaybookExecutor
+from conf.settings import TEMPLATE_DIR,BASE_DIR
+import os
+import sys
 import logging
-from dbcollections.task.models import Task
-from uuid import uuid4
+import json
+
 
 logger = logging.getLogger()
 
@@ -87,7 +91,36 @@ class MyRunner(object):
     """
     def __init__(self, resource, *args, **kwargs):
         self.resource = resource
+        self.inventory = None
+        self.variable_manager = None
+        self.loader = None
+        self.options = None
+        self.passwords = None
+        self.callback = None
+        self.__initializeData()
         self.results_raw = {}
+
+    def __initializeData(self):
+        """
+        初始化ansible
+        """
+        Options = namedtuple('Options', ['connection','module_path', 'forks', 'timeout',  'remote_user',
+                'ask_pass', 'private_key_file', 'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
+                'scp_extra_args', 'become', 'become_method', 'become_user', 'ask_value_pass', 'verbosity',
+                'check', 'listhosts', 'listtasks', 'listtags', 'syntax'])
+
+        # initialize needed objects
+        self.variable_manager = VariableManager()
+        self.loader = DataLoader()
+        self.options = Options(connection='smart', module_path='/usr/share/ansible', forks=100, timeout=10,
+                remote_user='root', ask_pass=False, private_key_file=None, ssh_common_args=None, ssh_extra_args=None,
+                sftp_extra_args=None, scp_extra_args=None, become=None, become_method=None,
+                become_user='root', ask_value_pass=False, verbosity=None, check=False, listhosts=False,
+                listtasks=False, listtags=False, syntax=False)
+
+        self.passwords = dict(sshpass=None, becomepass=None)
+        self.inventory = MyInventory(self.resource, self.loader, self.variable_manager).inventory
+        self.variable_manager.set_inventory(self.inventory)
 
     def run(self, host_list, module_name, module_args,):
         """
@@ -95,25 +128,6 @@ class MyRunner(object):
         module_name: ansible module_name
         module_args: ansible module args
         """
-        self.results_raw = {'success':{}, 'failed':{}, 'unreachable':{}}
-        Options = namedtuple('Options', ['connection','module_path', 'forks', 'timeout',  'remote_user',
-                'ask_pass', 'private_key_file', 'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
-                'scp_extra_args', 'become', 'become_method', 'become_user', 'ask_value_pass', 'verbosity', 'check'])
-
-        # initialize needed objects
-        variable_manager = VariableManager()
-        loader = DataLoader()
-        options = Options(connection='smart', module_path='/usr/share/ansible', forks=100, timeout=10,
-                remote_user='root', ask_pass=False, private_key_file=None, ssh_common_args=None, ssh_extra_args=None,
-                sftp_extra_args=None, scp_extra_args=None, become=None, become_method=None,
-                become_user='root',ask_value_pass=False, verbosity=None, check=False)
-
-        passwords = dict(sshpass=None, becomepass=None)
-
-        # create inventory and pass to var manager
-        inventory = MyInventory(self.resource, loader, variable_manager).inventory
-        variable_manager.set_inventory(inventory)
-
         # create play with tasks
         play_source = dict(
                 name="Ansible Play",
@@ -121,35 +135,69 @@ class MyRunner(object):
                 gather_facts='no',
                 tasks=[dict(action=dict(module=module_name, args=module_args))]
         )
-        play = Play().load(play_source, variable_manager=variable_manager, loader=loader)
+        play = Play().load(play_source, variable_manager=self.variable_manager, loader=self.loader)
 
         # actually run it
         tqm = None
-        callback = ResultsCollector()
+        self.callback = ResultsCollector()
         try:
             tqm = TaskQueueManager(
-                    inventory=inventory,
-                    variable_manager=variable_manager,
-                    loader=loader,
-                    options=options,
-                    passwords=passwords,
+                    inventory=self.inventory,
+                    variable_manager=self.variable_manager,
+                    loader=self.loader,
+                    options=self.options,
+                    passwords=self.passwords,
             )
-            tqm._stdout_callback = callback
+            tqm._stdout_callback = self.callback
             result = tqm.run(play)
         finally:
             if tqm is not None:
                 tqm.cleanup()
 
-        for host, result in callback.host_ok.items():
+    def run_playbook(self, host_list, role_name, role_uuid, temp_param):
+        """
+        run ansible palybook
+        """
+        try:
+            self.callback = ResultsCollector()
+            filenames = [BASE_DIR + '/handlers/ansible/v1_0/sudoers.yml']
+            logger.info('ymal file path:%s'% filenames)
+            template_file = TEMPLATE_DIR
+            if not os.path.exists(template_file):
+                logger.error('%s 路径不存在 '%template_file)
+                sys.exit()
+
+            extra_vars = {}
+            host_list_str = ','.join([item for item in host_list])
+            extra_vars['host_list'] = host_list_str
+            extra_vars['username'] = role_name
+            extra_vars['template_dir'] = template_file
+            extra_vars['command_list'] = temp_param.get('cmdList')
+            extra_vars['role_uuid'] = 'role-%s'%role_uuid
+            self.variable_manager.extra_vars = extra_vars
+            logger.info('playbook 额外参数:%s'%self.variable_manager.extra_vars)
+            # actually run it
+            executor = PlaybookExecutor(
+                playbooks=filenames, inventory=self.inventory, variable_manager=self.variable_manager, loader=self.loader,
+                options=self.options, passwords=self.passwords,
+            )
+            executor._tqm._stdout_callback = self.callback
+            executor.run()
+        except Exception as e:
+            logger.error("run_playbook:%s"%e)
+
+    def get_result(self):
+        self.results_raw = {'success':{}, 'failed':{}, 'unreachable':{}}
+        for host, result in self.callback.host_ok.items():
             self.results_raw['success'][host] = result._result
 
-        for host, result in callback.host_failed.items():
+        for host, result in self.callback.host_failed.items():
             self.results_raw['failed'][host] = result._result['msg']
 
-        for host, result in callback.host_unreachable.items():
+        for host, result in self.callback.host_unreachable.items():
             self.results_raw['unreachable'][host]= result._result['msg']
 
-        logger.debug(self.results_raw)
+        logger.debug("Ansible执行结果集:%s"%self.results_raw)
         return self.results_raw
 
 
@@ -245,6 +293,4 @@ class ResultsCollector(CallbackBase):
 
     def v2_runner_on_failed(self, result,  *args, **kwargs):
         self.host_failed[result._host.get_name()] = result
-
-
 

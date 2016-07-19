@@ -26,6 +26,8 @@ from dbcollections.task.models import Task
 from dbcollections.permission.models import PermPush
 from conf.settings import engine
 from uuid import uuid4
+from handlers.permission.v1_0.resource import get_one_object
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -88,22 +90,25 @@ def permpush_record(param, result=None, action='save'):
         session.close()
 
 
-class GenModulesHandler(RequestHandler):
+def get_template_param(role_name, sudo_uuids):
     """
-       获取ansible的所有模块
+    渲染模板文件
     """
+    kwds = {}
+    try:
+        sudo_commands = []
+        for item in sudo_uuids:
+            obj = get_one_object('PermSudo', item)
+            commands = obj['commands'].split(',')
+            for cmd in commands:
+                sudo_commands.append(cmd.strip())
+        logger.info('sudo_commands:%s'%sudo_commands)
+        kwds['username'] = role_name
+        kwds['cmdList'] = sudo_commands
+    except Exception as e:
+        logger.error(e)
+    return kwds
 
-    executor = ThreadPoolExecutor(2)
-
-    @asynchronous
-    @coroutine
-    def get(self, *args, **kwargs):
-        ansi_all_modules = gen_classify_modules(ANSIBLE_PATHS)
-        self.write({
-            'ansi_core_modules': ansi_all_modules['core'],
-            'ansi_extra_modules': ansi_all_modules['extra']
-        })
-        self.finish()
 
 
 class ExecPlayHandler(RequestHandler):
@@ -118,16 +123,18 @@ class ExecPlayHandler(RequestHandler):
     def post(self, *args, **kwargs):
         try:
             param = json.loads(self.request.body)
-            if 'action' in param:
-                mod_name = param.get('mod_name')
-                resource = param.get('resource')
-                host_list = param.get('hosts')
-                mod_args = param.get('mod_args')
+            run_action = param.get('run_action')         # 判断是同步执行还是异步执行 sync 同步   async 异步
+            if run_action == 'sync':
+                mod_name = param.get('mod_name', '')
+                resource = param.get('resource', '')
+                host_list = param.get('hosts', '')
+                mod_args = param.get('mod_args', '')
                 my_runner = MyRunner(resource)
-                res_play = my_runner.run(host_list, mod_name, mod_args)
+                my_runner.run(host_list, mod_name, mod_args)
+                res_play_resut = my_runner.get_result()
                 self.set_status(200, 'success')
-                self.finish({'messege': res_play})
-            else:
+                self.finish({'messege': res_play_resut})
+            elif run_action == 'async':
                 role_name = param.get('role_name')
                 tk_name = role_name+'_'+uuid4().hex
                 task_record(tk_name)
@@ -156,43 +163,43 @@ class ExecPlayHandler(RequestHandler):
             host_list = param.get('hosts')
             mod_args = param.get('mod_args')
             my_runner = MyRunner(resource)
-            res_play = my_runner.run(host_list, mod_name, mod_args)
+            if param.get('run_type') == 'ad-hoc':                        # 判断是执行ad-hoc还是 playbook
+                    my_runner.run(host_list, mod_name, mod_args)
+            else:
+                # if param.get('isTemplate', ''):
+                role_name = param.get('role_name', '')
+                sudo_uuids = param.get('sudo_uuids', [])
+                role_uuid = param.get('role_uuid', role_name)    # 用role的uuid_id来命名sudoers.d目录下的文件,如果uuid_id为空,用role_name来命名
+                logger.info('推送sudo  sudo_uuids:%s'%sudo_uuids)
+                # 获取模板 user.js 所需的参数
+                temp_param = get_template_param(role_name, sudo_uuids)
+                logger.info(u'模板user.j2所需的参数:%s'%temp_param)
+                my_runner.run_playbook(host_list, role_name, role_uuid, temp_param)
+
+            res_play = my_runner.get_result()
             task_record(task_name, res_play, action='update')
             permpush_record(param, res_play, action='update')
         except Exception as e:
             logger.error(e)
 
+    def render_template(self, template_name, **kwargs):
+        """
+        渲染 模板
+        """
+        template_dirs = []
+        if self.settings.get('template_path', ''):
+            template_dirs.append(
+                self.settings["template_path"]
+            )
 
-class ExecPlayBookHandler(RequestHandler):
-    """
-       执行ansible playbook
-    """
-    executor = ThreadPoolExecutor(2)
+        env = Environment(loader=FileSystemLoader(template_dirs))
 
-    @asynchronous
-    @coroutine
-    def post(self, *args, **kwargs):
-        param = json.loads(self.request.body)
-        file_name = param['name']
-        global res_playbook
-        res_playbook = exec_playbook(file_name)
-        self.write({
-            'state': '正在执行中......',
-        })
-        self.finish()
-
-
-class ExecPBResultHandler(RequestHandler):
-    executor = ThreadPoolExecutor(2)
-
-    @asynchronous
-    @coroutine
-    def get(self, *args, **kwargs):
-        self.write({
-            'result': res_playbook,
-        })
-
-        self.finish()
+        try:
+            template = env.get_template(template_name)
+        except TemplateNotFound:
+            raise TemplateNotFound(template_name)
+        content = template.render(kwargs)
+        return content
 
 
 class ExecHandler(WebSocketHandler):
