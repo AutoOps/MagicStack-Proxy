@@ -1,5 +1,5 @@
 #Host_Alias     MAILSERVERS = smtp, smtp2
 #User_Alias     ADMINS = jsmith, mikem
-Cmnd_Alias      SYSTEM_COMMAND ={% for cmd in cmdList %}{{ cmd }}{% if not loop.last %},{% endif %}{% endfor %}
+Cmnd_Alias      SYSTEMCOMMAND ={% for cmd in cmdList %}{{ cmd }}{% if not loop.last %},{% endif %}{% endfor %}
 
-{{ userName }}     ALL=(ALL)       NOPASSWD: SYSTEM_COMMAND
+{{ userName }}     ALL=(ALL)       NOPASSWD: SYSTEMCOMMAND

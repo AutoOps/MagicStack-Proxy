@@ -29,6 +29,7 @@ class PermRole(Base):
     sudo = relationship("PermSudo",
                         secondary=permrole_sudo,
                         backref="perm_role")
+    system_groups = Column(String(200))
 
     def __repr__(self):
         return self.name

@@ -180,15 +180,9 @@ def permrole_to_dict(role):
     """
     sudo_list = [dict(id=item.id, name=item.name, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
                       commands=item.commands, comment=item.comment) for item in role.sudo]
-    # push_list = []
-    # for item in role.perm_push:
-    #     asset_list = {}
-    #     push_list.append(dict(id=item.id, asset=asset_list, success=item.success,
-    #            result=item.result, is_public_key=item.is_public_key,
-    #            is_password=item.is_password, date_added=item.date_added.strftime('%Y-%m-%d  %H:%M:%S')))
     res = dict(id=role.id, name=role.name, password=role.password, key_path=role.key_path,
                date_added=role.date_added.strftime('%Y-%m-%d  %H:%M:%S'),
-               comment=role.comment, sudo=sudo_list)
+               comment=role.comment, sudo=sudo_list, system_groups=role.system_groups, uuid_id=role.uuid_id)
     return res
 
 
@@ -289,7 +283,7 @@ def save_permrole(session, param):
             raise ServerError(u'名字不能为空')
 
         role = PermRole(name=param['name'], password=param['password'], comment=param['comment'],
-                        date_added=now, uuid_id=param['uuid_id'], id=param['id'])
+                        date_added=now, uuid_id=param['uuid_id'], id=param['id'], system_groups=param['sys_groups'])
         key_content = param['key_content']
         if key_content:
             try:
@@ -376,7 +370,7 @@ def update_permrole(session,obj_uuid, param):
         if param['password']:
             encrypt_pass = CRYPTOR.encrypt(param['password'])
             role.password = encrypt_pass
-
+        role.system_groups = param['sys_groups']
         role.sudo = sudo_list
         role.comment = param['comment']
         session.add(role)
