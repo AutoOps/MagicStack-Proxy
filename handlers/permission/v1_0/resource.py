@@ -15,6 +15,7 @@ from paramiko import SSHException
 from paramiko.rsakey import RSAKey
 from uuid import uuid4
 import os
+import json
 
 handler = logging.handlers.RotatingFileHandler(os.sep.join([LOG_DIR, 'permission.log']), maxBytes=1024 * 1024,
                                                backupCount=5)
@@ -143,34 +144,22 @@ def gen_keys(key="", key_path_dir=""):
     并且在该目录下 生产一对秘钥
     :return: 返回目录名(uuid)
     """
+    key_contents = json.loads(key)
     key_basename = "key-" + uuid4().hex
     if not key_path_dir:
         key_path_dir = os.path.join(KEY_DIR, 'role_key', key_basename)
     private_key = os.path.join(key_path_dir, 'id_rsa')
     public_key = os.path.join(key_path_dir, 'id_rsa.pub')
     mkdir(key_path_dir, mode=0755)
-    if not key:
-        key = RSAKey.generate(2048)
-        key.write_private_key_file(private_key)
-    else:
-        key_file = os.path.join(key_path_dir, 'id_rsa')
-        with open(key_file, 'w') as f:
-            f.write(key)
-            f.close()
-        with open(key_file) as f:
-            try:
-                key = RSAKey.from_private_key(f)
-            except SSHException, e:
-                shutil.rmtree(key_path_dir, ignore_errors=True)
-                raise SSHException(e)
-    os.chmod(private_key, 0644)
+    private_key_data = key_contents.get('private_key')
+    public_key_data = key_contents.get('public_key')
+    with open(private_key, 'w') as f:
+        f.write(private_key_data)
 
-    with open(public_key, 'w') as content_file:
-        for data in [key.get_name(),
-                     " ",
-                     key.get_base64(),
-                     " %s@%s" % ("magicstack", os.uname()[1])]:
-            content_file.write(data)
+    with open(public_key, 'w') as p:
+        p.write(public_key_data)
+
+    os.chmod(private_key, 0644)
     return key_path_dir
 
 
@@ -285,13 +274,14 @@ def save_permrole(session, param):
         role = PermRole(name=param['name'], password=param['password'], comment=param['comment'],
                         date_added=now, uuid_id=param['uuid_id'], id=param['id'], system_groups=param['sys_groups'])
         key_content = param['key_content']
-        if key_content:
-            try:
-                key_path = gen_keys(key=key_content)
-            except SSHException, e:
-                raise ServerError(e)
-        else:
-            key_path = gen_keys()
+        if not key_content:
+            raise ValueError(u'系统用户的秘钥为空,请重新生成公钥和私钥')
+
+        try:
+            key_path = gen_keys(key=key_content)
+        except SSHException, e:
+            raise ServerError(e)
+
         role.key_path = key_path
         sudo_uuids = param['sudo_uuids']
         sudo_list = [session.query(PermSudo).filter_by(uuid_id=item).first() for item in sudo_uuids]
@@ -356,10 +346,10 @@ def update_permrole(session,obj_uuid, param):
         logger.info("uuid_id:%s"%obj_uuid)
         role = session.query(PermRole).get(obj_uuid)
         key_content = param['key_content']
-        # 生成随机密码，生成秘钥对
+        # 如果key_content不为空,就更新秘钥对;如果为空，就保持不变
         if key_content:
             try:
-                key_path = gen_keys(key=key_content, key_path_dir=role.key_path)
+                key_path = gen_keys(key_content, role.key_path)
                 role.key_path = key_path
             except SSHException:
                 raise ServerError('输入的密钥不合法')
