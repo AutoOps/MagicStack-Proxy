@@ -32,7 +32,7 @@ from ansible.plugins.callback.minimal import CallbackModule as minimal_callback
 
 from dbcollections.task.models import Apscheduler_Task
 from utils.utils import get_dbsession
-from conf.settings import LOG_DIR, SPECIAL_MODULES
+from conf.settings import LOG_DIR, SPECIAL_MODULES, ANSIBLE_PLAYBOOK_PATH, ANSIBLE_SCRIPT_PATH
 from display import LogDisplay
 from config import CALLBACK, CALLBACKMODULE
 
@@ -117,13 +117,61 @@ def ansible_play(**kwargs):
 @task
 def ansible_playbook(**kwargs):
     logger.info('ansible playbook output kwargs {0}'.format(kwargs))
+    # 应用于执行多ansible playbook的情况
+    filenames = kwargs.get('filenames')
 
-    # Ansible Inventory Todo：考虑是否可拿走
-    resource = kwargs['resource']
-    filenames = kwargs['filenames']
-
+    # 实际要保存的内容{文件名:文件内容}
+    content = kwargs.get('content', None)
+    if content:
+        # 查看目录是否存在，不存在，则创建
+        try:
+            if not os.path.exists(ANSIBLE_PLAYBOOK_PATH):
+                os.mkdir(ANSIBLE_PLAYBOOK_PATH)
+        except:
+            logger.error(traceback.format_exc())
+            # 生成文件，为了防止文件名重复，使用job_id
+        filename = os.sep.join([ANSIBLE_PLAYBOOK_PATH, '{0}.yml'.format(kwargs.get('job_id'))])
+        f = open(filename, 'wb')
+        f.write(content)
+        f.close()
+        filenames = [filename]
     runner = AnsibleRunner(**kwargs)
     result = runner.run_playbook(filenames)
+
+    return result
+
+
+@task
+def shell(**kwargs):
+    """
+        使用ansible的script模块动态执行脚本
+    """
+    logger.info('ansible play script{0}'.format(kwargs))
+
+    # 生成shell文件，查看目录是否存在，不存在，则创建
+    content = kwargs.get('content', None)
+    try:
+        if not os.path.exists(ANSIBLE_SCRIPT_PATH):
+            os.mkdir(ANSIBLE_SCRIPT_PATH)
+    except:
+        logger.error(traceback.format_exc())
+
+    # 生成文件，为了防止文件名重复，使用job_id
+    filename = os.sep.join([ANSIBLE_SCRIPT_PATH, '{0}.yml'.format(kwargs.get('job_id'))])
+    f = open(filename, 'wb')
+    f.write(content)
+    f.close()
+
+    # 被操作的主机
+    host_list = kwargs['host_list']
+    # 模块及模块所需参数
+    module_name = "script"
+    module_args = filename
+
+    runner = AnsibleRunner(**kwargs)
+    if module_name in SPECIAL_MODULES:
+        logger.info("special modeules , result not json")
+    result = runner.run_play(host_list, module_name, module_args)
 
     return result
 
@@ -285,6 +333,7 @@ class AnsibleRunner(object):
 TASK = {
     'ansible': ansible_play,
     'ansible-pb': ansible_playbook,
+    'shell': shell,
 }
 
 if __name__ == "__main__":
