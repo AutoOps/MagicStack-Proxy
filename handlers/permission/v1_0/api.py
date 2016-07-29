@@ -132,7 +132,8 @@ class PushEventHandler(RequestHandler):
         try:
             param = json.loads(self.request.body)
             tk_name = param['task_name']
-            event = session.query(Task).filter_by(task_name=tk_name).first()
+            web_username = param['username']
+            event = session.query(Task).filter_by(task_name=tk_name, username=web_username).first()
             result = event.result
             self.set_status(200, 'success')
             self.finish({'messege': result})

@@ -18,8 +18,6 @@ from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import sessionmaker
 from ansible_play import MyRunner, MyWSRunner
-from all_modules import gen_classify_modules
-from ansible_play_book import exec_playbook
 from utils.auth import auth
 from utils.utils import get_dbsession
 from dbcollections.task.models import Task
@@ -38,7 +36,7 @@ ANSIBLE_PATHS = {'core': '/usr/lib/python2.7/site-packages/ansible/modules/core'
                  'extra': '/usr/lib/python2.7/site-packages/ansible/modules/extras'}
 
 
-def task_record(task_name, result=None, action='save'):
+def task_record(task_name, web_username=None, result=None, action='save'):
     # 记录,更新task
     Session = sessionmaker()
     Session.configure(bind=engine)
@@ -49,6 +47,7 @@ def task_record(task_name, result=None, action='save'):
             ansi_task.task_name = task_name
             ansi_task.start_time = datetime.datetime.now()
             ansi_task.status = 'running'
+            ansi_task.username = web_username
             session.add(ansi_task)
             session.commit()
         else:
@@ -136,8 +135,9 @@ class ExecPlayHandler(RequestHandler):
                 self.finish({'messege': res_play_resut})
             elif run_action == 'async':
                 role_name = param.get('role_name')
+                web_username = param.get('web_username')
                 tk_name = role_name+'_'+uuid4().hex
-                task_record(tk_name)
+                task_record(tk_name, web_username)
                 permpush_record(param)
                 self.set_backgroud_task(param,tk_name)
                 self.set_status(200, 'success')
@@ -177,7 +177,7 @@ class ExecPlayHandler(RequestHandler):
                 my_runner.run_playbook(host_list, role_name, role_uuid, temp_param)
 
             res_play = my_runner.get_result()
-            task_record(task_name, res_play, action='update')
+            task_record(task_name, result=res_play, action='update')
             permpush_record(param, res_play, action='update')
         except Exception as e:
             logger.error(e)
