@@ -399,15 +399,23 @@ class ProfileHandler(RequestHandler):
 
 
 class FileHandler(RequestHandler):
-    #@auth
+    @auth
     def post(self, *args, **kwargs):
         try:
-            params = json.loads(self.request.body)
-            if params.get('action', 'download'):
+            try:
+                # 下载
+                params = json.loads(self.request.body)
+            except ValueError:
+                # 上传
+                action = self.get_argument("action")
+                params = {'action': action}
+
+            if params.get('action') == 'download':
                 ftp_file_path = params.get('file_path')
                 file_name = os.sep.join([DOWNLOAD_PATH, params.get('file_name')])
                 # 创建ftp连接
-                ftp = MyFTP(host=params.get('ftp_host'), port=int(params.get('ftp_port', 21)), user=params.get('ftp_user'),
+                ftp = MyFTP(host=params.get('ftp_host'), port=int(params.get('ftp_port', 21)),
+                            user=params.get('ftp_user'),
                             passwd=params.get('ftp_pwd'), timeout=2000)
                 ftp.download(ftp_file_path, file_name)
                 ftp.close()
@@ -423,10 +431,11 @@ class FileHandler(RequestHandler):
                 for meta in file_metas:
                     filename = meta['filename'].split(os.path.sep)[-1]
                     filepath = os.path.join(UPLOAD_PATH, filename)
-                    with open(filepath, 'wb') as up:      # 有些文件需要已二进制的形式存储，实际中可以更改
+                    # 有些文件需要已二进制的形式存储，实际中可以更改
+                    with open(filepath, 'wb') as up:
                         up.write(meta['body'])
                     self.set_status(200, 'ok')
-                    self.finish()
+                    self.finish({'fp': filepath})
 
         except ValueError:
             logger.error(traceback.format_exc())
