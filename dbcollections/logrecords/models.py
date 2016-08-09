@@ -85,4 +85,17 @@ class TtyLog(Base):
     cmd = Column(Text)
 
 
+class ExecLog(Base):
+    __tablename__ = 'exec_log'
+
+    id = Column(Integer, primary_key=True)
+    user = Column(String(60))
+    host = Column(Text)
+    proxy_host = Column(String(100))
+    cmd = Column(Text)
+    remote_ip = Column(String(60))
+    result = Column(Text)
+    datetime = Column(DateTime, default=datetime.datetime.now)
+
+
 Base.metadata.create_all(engine)

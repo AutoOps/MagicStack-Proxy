@@ -189,13 +189,22 @@ class MyRunner(object):
     def get_result(self):
         self.results_raw = {'success':{}, 'failed':{}, 'unreachable':{}}
         for host, result in self.callback.host_ok.items():
+            logger.info('ansible run host_ok :%s'%result._result)
             self.results_raw['success'][host] = result._result
 
         for host, result in self.callback.host_failed.items():
-            self.results_raw['failed'][host] = result._result['msg']
+            logger.info('ansible run host_failed :%s'%result._result)
+            if 'msg' in result._result:
+                self.results_raw['failed'][host] = result._result['msg']
+            else:
+                self.results_raw['failed'][host] = result._result['stderr']
 
         for host, result in self.callback.host_unreachable.items():
-            self.results_raw['unreachable'][host]= result._result['msg']
+            logger.info('ansible run host_unreachable :%s'%result._result)
+            if 'msg' in result._result:
+                self.results_raw['unreachable'][host]= result._result['msg']
+            else:
+                self.results_raw['unreachable'][host] = result._result['stderr']
 
         logger.debug("Ansible执行结果集:%s"%self.results_raw)
         return self.results_raw

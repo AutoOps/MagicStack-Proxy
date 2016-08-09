@@ -26,14 +26,17 @@ except ImportError:
 from tornado.websocket import WebSocketHandler
 from tornado.web import HTTPError
 
+from sqlalchemy.orm import sessionmaker
+
 from dbcollections.nodes.models import Node
 from dbcollections.permission.models import PermRole
-from dbcollections.logrecords.models import TermLog, Log, TtyLog
+from dbcollections.logrecords.models import TermLog, Log, TtyLog, ExecLog
 from common.base import RequestHandler
 from utils.auth import auth
 from utils.utils import get_dbsession
-from conf.settings import LOG_DIR
+from conf.settings import LOG_DIR,engine
 from util import renderJSON, WebTty, MyThread
+from handlers.ansible.v1_0.ansible_play import MyRunner
 
 
 logger = logging.getLogger()
@@ -466,3 +469,128 @@ class TermLogRecorder(object):
             del TermLogRecorder.loglist[str(self.id)]
         except KeyError:
             pass
+
+
+class ExecCommandsHandler(WebSocketHandler):
+    """
+    执行shell命令
+    """
+    clients = []
+    tasks = []
+
+    def __init__(self, *args, **kwargs):
+        self.log_id = ''
+        self.runner = None
+        self.assets = []
+        self.remote_ip = ''
+        self.proxy_host = ''
+        super(ExecCommandsHandler, self).__init__(*args, **kwargs)
+
+    def check_origin(self, origin):
+        return True
+
+    def open(self):
+        # 远程IP
+        self.remote_ip = self.request.remote_ip
+        # proxy IP
+        self.proxy_host = self.request.host
+
+        logger.info('remote ip:%s'%self.remote_ip)
+
+    def on_message(self, message):
+        data = json.loads(message)
+        pattern = data.get('pattern', '')
+        self.command = data.get('command', '')
+        resource = data.get('resource', '')
+        self.asset_name_str = ''
+        if pattern and self.command:
+            self.runner = MyRunner(resource)
+            host_lists = [item.name for item in self.runner.inventory.list_hosts(pattern)]
+            logger.info('execute commands host_lists:%s'%host_lists)
+            if host_lists:
+                for inv in host_lists:
+                    self.asset_name_str += '%s ' % inv
+                self.write_message('匹配主机: ' + self.asset_name_str)
+                self.write_message('<span style="color: yellow">Ansible> %s</span>\n\n' % self.command)
+                self.__class__.tasks.append(MyThread(target=self.run_cmd, args=(self.command, host_lists)))
+            else:
+                self.write_message('匹配不到主机')
+                self.on_close()
+
+        for t in self.__class__.tasks:
+            if t.is_alive():
+                continue
+            try:
+                t.setDaemon(True)
+                t.start()
+            except RuntimeError:
+                pass
+
+    def run_cmd(self, command, host_list):
+        self.runner.run(host_list, 'shell', command)
+        self.runner.get_result()
+
+        # 记录日志
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        try:
+            exec_log = ExecLog(host=self.asset_name_str, cmd=self.command, user='', proxy_host=self.proxy_host,
+                               remote_ip=self.remote_ip, result=json.dumps(self.runner.results_raw))
+            session.add(exec_log)
+            session.commit()
+            self.log_id = exec_log.id
+        except Exception as e:
+            logger.error(e)
+        finally:
+            session.close()
+
+        # 将命令执行结果显示到窗口中
+        logger.info('execute commands results:%s'% self.runner.results_raw)
+        newline_pattern = re.compile(r'\n')
+        for k, v in self.runner.results_raw.items():
+            for host, info in v.items():
+                if k == 'success':
+                    header = "<span style='color: green'>[ %s => %s]</span>\n" % (host, 'success')
+                    output = newline_pattern.sub('<br />', info['stdout'])
+                else:
+                    header = "<span style='color: red'>[ %s => %s]</span>\n" % (host, 'failed')
+                    output = newline_pattern.sub('<br />', info)
+                self.write_message(header)
+                self.write_message(output)
+
+        self.write_message('log_id:%s'%self.log_id)   # 日志ID,查询日志用
+        self.write_message('\n~o~ Task finished ~o~\n')
+
+    def on_close(self):
+        logger.debug('关闭web_exec请求')
+
+
+class ExecCommandsLogsHandler(RequestHandler):
+    """
+    批量执行命令日志查询
+    """
+    @auth
+    def get(self, *args, **kwargs):
+        try:
+            log_id = kwargs.get('log_id', '')
+            se = get_dbsession()
+            if log_id:
+                log_info = se.query(ExecLog).get(log_id)
+                if not log_info:
+                    raise HTTPError(404, "Log Not Found")
+
+                self.set_status(200)
+                self.finish({'messege': 'success', 'data': log_info.to_dict()})
+        except ValueError:
+            logger.error(traceback.format_exc())
+            self.set_status(400, 'value error')
+            self.finish({'messege':'value error'})
+        except HTTPError as http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege':http_error.log_message})
+        except:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege':'failed'})
+
