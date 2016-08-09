@@ -11,6 +11,7 @@ import traceback
 import os
 import uuid
 import stat
+import re
 from utils.utils import MyFTP
 
 try:
@@ -31,6 +32,7 @@ from utils.auth import auth
 from conf.settings import UPLOAD_PATH, DOWNLOAD_PATH
 from dbcollections.nodes.models import Node
 from dbcollections.file.models import FileDownload
+from handlers.scheduler.v1_0.task import AnsibleRunner
 
 logger = logging.getLogger()
 
@@ -410,6 +412,8 @@ class FileHandler(RequestHandler):
                 action = self.get_argument("action")
                 params = {'action': action}
 
+            logger.info("params => {0}".format(params))
+
             if params.get('action') == 'download':
                 ftp_file_path = params.get('file_path')
                 file_name = os.sep.join([DOWNLOAD_PATH, params.get('file_name')])
@@ -426,6 +430,40 @@ class FileHandler(RequestHandler):
                 se.commit()
                 self.set_status(200, 'ok')
                 self.finish({'link': fd.id})
+            elif params.get('action') == 'download_ansible':
+                """resource/host_list"""
+                logger.info("download_ansible params ==> {0}".format(params))
+                params['job_id'] = str(uuid.uuid1())
+                path = params.get('path')
+                module_name = 'fetch'
+                module_args = 'src=%s dest=%s' % (path, DOWNLOAD_PATH)
+                host_list = params.get('host_list')
+                # 如果成功，实际目录为
+                link = os.sep.join([DOWNLOAD_PATH, host_list[0], path])
+                runner = AnsibleRunner(**params)
+                result = json.loads(runner.run_play(host_list, module_name, module_args))
+                result = sorted(result.items(), key=lambda x: x[0])
+                rsx = ""
+                for t, line in result:
+                    # 筛选符合的字符串
+                    rsx += line
+                # 根据字符串结果进行匹配
+                rs = re.findall(r'([\d\.]*) \| ([\w]*) => (.*)', rsx, re.S)
+                ip, rs1, info = rs[0]
+                msg = "success"
+                info = json.loads(info.replace('\r\n', ''))
+                if not info.get('changed'):
+                    msg = info.get('msg')
+                    self.set_status(404, 'ok')
+                    self.finish({'message': msg})
+                else:
+                    fd = FileDownload(link=link)
+                    se = get_dbsession()
+                    se.begin()
+                    se.add(fd)
+                    se.commit()
+                    self.set_status(200, 'ok')
+                    self.finish({'link': fd.id, 'message': msg})
             else:
                 file_metas = self.request.files['file'] # 提取表单中name为file的文件元数据
                 for meta in file_metas:
