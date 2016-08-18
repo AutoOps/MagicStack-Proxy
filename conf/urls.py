@@ -17,7 +17,6 @@ models = [
     "server.v1_0.urls",
     "ansible.v1_0.urls",
     "websocket.v1_0.urls",
-    "account.v1_0.urls",
     "permission.v1_0.urls",
     "scheduler.v1_0.urls",
 ]
