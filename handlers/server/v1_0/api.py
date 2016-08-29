@@ -452,9 +452,9 @@ class FileHandler(RequestHandler):
                 ip, rs1, info = rs[0]
                 msg = "success"
                 info = json.loads(info.replace('\r\n', ''))
-                if not info.get('changed'):
+                if info.get('msg'):
                     msg = info.get('msg')
-                    self.set_status(404, 'ok')
+                    self.set_status(404, 'Not Found')
                     self.finish({'message': msg})
                 else:
                     fd = FileDownload(link=link)
