@@ -19,6 +19,7 @@ models = [
     "websocket.v1_0.urls",
     "permission.v1_0.urls",
     "scheduler.v1_0.urls",
+    "app.v1_0.urls",
 ]
 
 for mod in models:

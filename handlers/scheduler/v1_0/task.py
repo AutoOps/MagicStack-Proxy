@@ -176,6 +176,41 @@ def shell(**kwargs):
     return result
 
 
+@task
+def playbook(**kwargs):
+    host_list = kwargs['host_list']
+    playbook_basedir = kwargs['playbook_basedir']
+    playbooks = kwargs['playbooks']
+    job_id = kwargs['job_id']
+    loader = DataLoader()
+
+    vars = VariableManager()
+    # 指定inventory为一个目录，设置所有主机，包含group和host
+    invertory = Inventory(loader, vars,
+                          host_list=host_list)
+    invertory.set_playbook_basedir(playbook_basedir)
+    vars.set_inventory(invertory)
+    display = LogDisplay(logname=job_id)
+    callback = CALLBACKMODULE[CALLBACK](display=display)
+    Options = namedtuple('Options', ['connection', 'module_path', 'forks', 'timeout', 'remote_user',
+                                     'ask_pass', 'private_key_file', 'ssh_common_args', 'ssh_extra_args',
+                                     'sftp_extra_args', 'scp_extra_args', 'become', 'become_method', 'become_user',
+                                     'ask_value_pass', 'verbosity', 'check', 'listhosts',
+                                     'listtags', 'listtasks', 'syntax'])
+
+    options = Options(connection='smart', module_path='/usr/share/ansible', forks=100, timeout=10,
+                      remote_user='root', ask_pass=False, private_key_file=None, ssh_common_args=None,
+                      ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None, become=None,
+                      become_method=None, become_user='root', ask_value_pass=False, verbosity=None,
+                      check=False, listhosts=None, listtags=None, listtasks=None, syntax=None)
+
+    passwords = dict()
+    pb_executor = PlaybookExecutor(playbooks, invertory, vars, loader, options, passwords)
+    pb_executor._tqm._stdout_callback = callback
+    pb_executor.run()
+    return display.get_log_json()
+
+
 class AnsibleInventory(Inventory):
     """
     this is my ansible inventory object.
@@ -334,6 +369,7 @@ TASK = {
     'ansible': ansible_play,
     'ansible-pb': ansible_playbook,
     'shell': shell,
+    'playbooks': playbook
 }
 
 if __name__ == "__main__":
