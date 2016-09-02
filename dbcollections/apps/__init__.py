@@ -14,13 +14,3 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-
-from tornado.web import url
-from handlers.app.v1_0.api import *
-
-VERSION = 'v1.0'
-
-urls = [
-    url(r'/app', AppHandler),
-    url(r'/app/action', AppActionHandler),
-]

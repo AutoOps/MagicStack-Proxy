@@ -178,17 +178,29 @@ def shell(**kwargs):
 
 @task
 def playbook(**kwargs):
+    group_vars = kwargs['group_vars']
+    groups = kwargs['groups']
     host_list = kwargs['host_list']
-    playbook_basedir = kwargs['playbook_basedir']
-    playbooks = kwargs['playbooks']
+    playbook_basedir = os.sep.join([ANSIBLE_PLAYBOOK_PATH, kwargs['playbook_basedir']])
+    playbooks = []
+    for pb in kwargs['playbooks']:
+        playbooks.append(os.sep.join([playbook_basedir, pb]))
+
     job_id = kwargs['job_id']
     loader = DataLoader()
-
     vars = VariableManager()
     # 指定inventory为一个目录，设置所有主机，包含group和host
     invertory = Inventory(loader, vars,
                           host_list=host_list)
+
     invertory.set_playbook_basedir(playbook_basedir)
+    for group_name, hosts in groups.items():
+        t_group = Group(group_name)
+        for host in hosts:
+            t_host = Host(host)
+            t_group.add_host(t_host)
+        invertory.add_group(t_group)
+
     vars.set_inventory(invertory)
     display = LogDisplay(logname=job_id)
     callback = CALLBACKMODULE[CALLBACK](display=display)
