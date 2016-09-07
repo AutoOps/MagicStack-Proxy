@@ -85,7 +85,7 @@ class AppActionHandler(RequestHandler):
             3. 数据库中记录下信息
         """
         filepath = None
-        file_metas = self.request.files['file'] # 提取表单中name为file的文件元数据
+        file_metas = self.request.files['file']  # 提取表单中name为file的文件元数据
         for meta in file_metas:
             filename = meta['filename'].split(os.path.sep)[-1]
             filepath = os.path.join(UPLOAD_PATH, filename)
@@ -94,7 +94,8 @@ class AppActionHandler(RequestHandler):
 
         app_uuid = self.get_argument('app_uuid')
         if not zipfile.is_zipfile(filepath):
-            raise HTTPError(status_code=400, log_message='file type must be zip')
+            raise HTTPError(status_code=400,
+                            log_message='file type must be zip')
         uuid_path = os.sep.join([ANSIBLE_PLAYBOOK_PATH, app_uuid])
         z = ZFile(filepath)
         z.extract_to(uuid_path)
@@ -109,7 +110,7 @@ class AppActionHandler(RequestHandler):
                   type=self.get_argument('type'),
                   basedir=os.sep.join([app_uuid, self.get_argument('basedir')]),
                   playbooks=self.get_argument('playbooks')
-        )
+                  )
         se.merge(app)
         se.commit()
 
@@ -132,8 +133,34 @@ class AppHandler(RequestHandler):
         }
         return job_info
 
+    def get(self, *args, **kwargs):
+        try:
+            app_uuid = kwargs.get('app_uuid')
+            # 查询过滤
+            if not app_uuid:
+                self.set_status(400, 'app_uuid required')
+                self.finish({"message": 'app_uuid required'})
+                return
 
-    #@auth
+            se = get_dbsession()
+            app = se.query(App).filter(App.uuid == app_uuid).first()
+            if not app:
+                self.set_status(404)
+                self.finish({"message": 'app not exists'})
+
+            self.set_status(200)
+            self.finish({"message": "ok", "app": app.to_dict()})
+
+        except HTTPError, http_error:
+            logger.error(traceback.format_exc())
+            self.set_status(http_error.status_code, http_error.log_message)
+            self.finish({'messege': http_error.log_message})
+        except Exception, e:
+            logger.error(traceback.format_exc())
+            self.set_status(500, 'failed')
+            self.finish({'messege': e.message})
+
+    # @auth
     def post(self, *args, **kwargs):
         '''
         '''
@@ -165,9 +192,12 @@ class AppHandler(RequestHandler):
             task_kwargs['job_id'] = job_id
             logger.info("add job:\n id-[{0}]\n ".format(job_id))
 
-            job = SCHEDULER.add_job(TASK['playbooks'], 'date', kwargs=task_kwargs, id=task_kwargs['job_id'], )
+            job = SCHEDULER.add_job(TASK['playbooks'], 'date',
+                                    kwargs=task_kwargs,
+                                    id=task_kwargs['job_id'], )
 
-            self.finish({'message': 'add success', 'job': self._get_job_info(job)})
+            self.finish(
+                {'message': 'add success', 'job': self._get_job_info(job)})
         except ValueError, error:
             logger.error(traceback.format_exc())
             self.set_status(400, error.message)
@@ -180,4 +210,3 @@ class AppHandler(RequestHandler):
             logger.error(traceback.format_exc())
             self.set_status(500, 'failed')
             self.finish({'messege': 'failed'})
-
