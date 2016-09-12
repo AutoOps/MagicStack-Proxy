@@ -51,10 +51,13 @@ class AppActionHandler(RequestHandler):
         return True
 
     def post(self, *args, **kwargs):
+        logger.info(self.get_arguments('action'))
         if self.get_arguments('action'):
             params = dict(action=self.get_argument('action'))
         else:
             params = json.loads(self.request.body)
+            logger.info(self.request.body)
+            logger.info(pamras)
         kwargs['params'] = params
         action = params.get('action', '').lower()
         action_method = "_{action}_action".format(action=action)
@@ -147,6 +150,7 @@ class AppHandler(RequestHandler):
             if not app:
                 self.set_status(404)
                 self.finish({"message": 'app not exists'})
+                return
 
             self.set_status(200)
             self.finish({"message": "ok", "app": app.to_dict()})

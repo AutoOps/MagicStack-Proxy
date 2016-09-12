@@ -22,6 +22,6 @@ VERSION = 'v1.0'
 
 urls = [
     url(r'/app', AppHandler),
+    url(r'/app-manage/action', AppActionHandler),
     url(r'/app/(?P<app_uuid>.*)$', AppHandler),
-    url(r'/app/action', AppActionHandler),
 ]
